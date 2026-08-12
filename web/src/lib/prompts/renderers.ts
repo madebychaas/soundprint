@@ -14,15 +14,30 @@
  *    reference name in the UI because they uploaded the file; the generated
  *    instruction describes characteristics instead.
  *
- * 3. **Claim nothing about the target platform.** Suno and Udio are closed
- *    systems whose prompt handling changes without notice. Renderers produce
- *    well-formed input in the conventional style of each and say plainly that
- *    parameters are not guaranteed to be honoured.
+ * 3. **Claim nothing about the target platform.** Udio is a closed system
+ *    whose prompt handling changes without notice, and the new visual/workflow
+ *    targets (LTX, ComfyUI, Snap Lens Studio) publish parameter surfaces this
+ *    product does not implement or validate against. Every renderer for a
+ *    third-party target says plainly, in its own caveats, what it actually is:
+ *    a creative brief in that platform's conventional shape, not a guaranteed
+ *    or validated import. None of them claim to produce a working project file,
+ *    a loadable node graph, or a documented parameter contract that doesn't
+ *    exist. `generic`/`producer`/`plaintext` are the one representation this
+ *    product's canonical output never depends on any of the others existing.
  */
 
 import type { SoundDna } from "../dna/schema";
 
-export type PromptKind = "generic" | "suno" | "udio" | "producer" | "plaintext";
+export type PromptKind =
+  | "generic"
+  | "udio"
+  | "producer"
+  | "plaintext"
+  | "ltx"
+  | "comfyui"
+  | "snap_lens";
+
+export type PromptCategory = "data" | "video" | "workflow" | "ar";
 
 export interface Modifiers {
   /** -1 darker … +1 brighter */
@@ -52,6 +67,15 @@ export const DEFAULT_MODIFIERS: Modifiers = {
   dnaStrength: 1,
 };
 
+/** A measured (not interpreted) structural region — from ObjectiveAnalysis.structure, not the DNA's own arrangement.sections. */
+export interface RenderSection {
+  label: string;
+  start: number;
+  end: number;
+  /** Coarse energy descriptor from thresholds only — see structure.py. Not a functional role. */
+  character: string | null;
+}
+
 export interface RenderContext {
   dna: SoundDna;
   modifiers?: Modifiers;
@@ -61,6 +85,20 @@ export interface RenderContext {
   tasteTraits?: string[];
   sourceTitle?: string | null;
   sourceArtist?: string | null;
+  /**
+   * Measured timing, for the renderers (LTX, ComfyUI) that build pacing/
+   * transition-cue content from it. Only available when rendering a single
+   * reference with a completed analysis — a multi-reference project prompt
+   * has no one timeline to draw from, so this is undefined there and those
+   * renderers omit the timing sections rather than guessing.
+   */
+  measuredTiming?: {
+    durationSeconds: number | null;
+    sections: RenderSection[];
+    sectionsReliable: boolean;
+    energyTrajectoryShape: string | null;
+    peakEnergyTime: number | null;
+  };
 }
 
 export interface RenderedPrompt {
@@ -299,109 +337,6 @@ function renderGeneric(ctx: RenderContext): RenderedPrompt {
   };
 }
 
-// ------------------------------------------------------------------------ suno
-function renderSuno(ctx: RenderContext): RenderedPrompt {
-  const { dna } = ctx;
-  const m = ctx.modifiers ?? DEFAULT_MODIFIERS;
-
-  // Suno's style field rewards a dense comma-separated descriptor list and
-  // ignores long prose, so this renderer compresses aggressively.
-  const tags: string[] = [];
-
-  const tempo = tempoLine(dna, m);
-  if (tempo) tags.push(tempo.replace("around ", ""));
-  if (nonEmpty(dna.harmony.mode)) {
-    // Uncertainty hedges belong in the UI, not in a style descriptor where
-    // "minor (uncertain) key" would just confuse the generator.
-    const mode = dna.harmony.mode.replace(/\s*\([^)]*\)/g, "").trim();
-    if (mode) tags.push(`${mode} key`);
-  }
-
-  /**
-   * Reduce a descriptive phrase to a single style tag.
-   *
-   * Care is needed because the output joins with commas: any comma surviving
-   * inside a tag fragments one concept into several meaningless ones. An
-   * earlier version also split on bare hyphens, which turned "the delayed,
-   * two-stage energy build" into the tags "delayed" and "two".
-   */
-  const compress = (v: string) =>
-    v
-      // Drop parenthetical asides — hedges and caveats are noise in a tag list.
-      .replace(/\s*\([^)]*\)/g, "")
-      // Cut at the first genuine clause break: a spaced dash, semicolon,
-      // sentence end, or comma. Bare hyphens inside words are left alone.
-      .split(/\s+[—–]\s+|;|\.\s|,/)[0]
-      .replace(/^(the|a|an)\s+/i, "")
-      .replace(/[.;:,\s]+$/, "")
-      .toLowerCase()
-      .trim();
-
-  for (const t of dna.signature_traits.slice(0, 4)) tags.push(compress(t.trait));
-  for (const g of dna.generation_guidance.preserve.slice(0, 4)) tags.push(compress(g));
-
-  for (const v of [
-    dna.production.warmth_brightness,
-    dna.production.density,
-    dna.production.stereo_width,
-    dna.bass.prominence,
-    dna.rhythm.drum_density ? `${compress(dna.rhythm.drum_density)} percussion` : null,
-    ...dna.production.texture,
-    ...dna.emotion.primary,
-  ]) {
-    if (nonEmpty(v)) tags.push(compress(v));
-  }
-
-  if (m.organicElectronic !== undefined && Math.abs(m.organicElectronic) > 0.2) {
-    tags.push(m.organicElectronic > 0 ? "electronic production" : "organic instrumentation");
-  }
-  if (m.scale !== undefined && Math.abs(m.scale) > 0.2) {
-    tags.push(m.scale > 0 ? "epic scale" : "intimate scale");
-  }
-  if (m.mood !== undefined && Math.abs(m.mood) > 0.2) tags.push(m.mood > 0 ? "brighter" : "darker");
-  if (m.energy !== undefined && Math.abs(m.energy) > 0.2) {
-    tags.push(m.energy > 0 ? "high energy" : "restrained energy");
-  }
-  if (nonEmpty(m.direction)) tags.push(compress(m.direction));
-
-  // Deduplicate and cap: an over-long style string dilutes every tag in it.
-  const seen = new Set<string>();
-  const unique = tags
-    .filter((t) => t.length > 2 && t.length < 60)
-    .filter((t) => {
-      const k = t.toLowerCase();
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    })
-    .slice(0, 18);
-
-  const body = [
-    "STYLE",
-    unique.join(", "),
-    "",
-    "EXCLUDE",
-    "derivative of any specific artist, cover version, sampled material",
-    "",
-    dna.arrangement.density_trajectory
-      ? `ARRANGEMENT NOTE\n${dna.arrangement.density_trajectory}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  return {
-    kind: "suno",
-    title: "Suno-oriented style prompt",
-    body,
-    caveats: [
-      "Formatted as a compact style descriptor, which is how Suno's style field is conventionally used.",
-      "Suno does not expose a documented parameter contract. Structural instructions such as arrangement pacing may be ignored entirely.",
-      "Paste the STYLE line into the style field. Write your own lyrics — Soundprint deliberately does not generate them from a reference.",
-    ],
-  };
-}
-
 // ------------------------------------------------------------------------ udio
 function renderUdio(ctx: RenderContext): RenderedPrompt {
   const { dna } = ctx;
@@ -557,12 +492,192 @@ function renderPlaintext(ctx: RenderContext): RenderedPrompt {
   };
 }
 
+function mmss(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Timing block shared by the visual/workflow renderers — measured, not interpreted. */
+function timingLines(ctx: RenderContext): string[] {
+  const t = ctx.measuredTiming;
+  if (!t) return [];
+  const lines: string[] = [];
+
+  if (t.durationSeconds !== null) lines.push(`Duration: ${mmss(t.durationSeconds)}`);
+  if (t.energyTrajectoryShape) lines.push(`Overall energy shape (measured): ${t.energyTrajectoryShape}`);
+  if (t.peakEnergyTime !== null) lines.push(`Highest-energy moment (measured): ${mmss(t.peakEnergyTime)}`);
+
+  if (t.sections.length > 1) {
+    const label = t.sectionsReliable
+      ? "Measured structural regions (boundaries only — not verse/chorus labels):"
+      : "Approximate structural regions (segmentation was not reliable for this track):";
+    lines.push(label);
+    for (const s of t.sections.slice(0, 10)) {
+      lines.push(`  ${mmss(s.start)}–${mmss(s.end)} — ${s.character ?? "region " + s.label}`);
+    }
+  }
+
+  return lines;
+}
+
+// -------------------------------------------------------------------------- ltx
+function renderLtx(ctx: RenderContext): RenderedPrompt {
+  const { dna } = ctx;
+  const lines: string[] = [];
+
+  lines.push("VISUAL / VIDEO GENERATION BRIEF\n");
+  lines.push(
+    "Written for an audio-reactive video-generation workflow in the shape LTX-style tools " +
+      "expect: mood and pacing language plus measured timing to key visual events to. This is a " +
+      "creative brief, not a validated LTX parameter file — treat every line as directional.\n",
+  );
+
+  const mood = [...dna.emotion.primary, dna.production.warmth_brightness, ...dna.production.texture].filter(
+    nonEmpty,
+  );
+  if (mood.length) lines.push(`MOOD & TEXTURE\n${mood.map((m) => `- ${m}`).join("\n")}\n`);
+
+  const visualIntensity = [
+    dna.dynamics.contrast ? `Visual intensity should track dynamic contrast: ${dna.dynamics.contrast.toLowerCase()}` : null,
+    dna.arrangement.energy_trajectory ? `Arc: ${dna.arrangement.energy_trajectory}` : null,
+    dna.arrangement.transition_style ? `Transitions: ${dna.arrangement.transition_style}` : null,
+  ].filter(nonEmpty);
+  if (visualIntensity.length) {
+    lines.push(`VISUAL INTENSITY TRAJECTORY (interpreted)\n${visualIntensity.map((v) => `- ${v}`).join("\n")}\n`);
+  }
+
+  const timing = timingLines(ctx);
+  if (timing.length) {
+    lines.push(`PACING & AUDIO-REACTIVE CUES (measured)\n${timing.map((t) => `- ${t}`).join("\n")}\n`);
+  } else {
+    lines.push(
+      "PACING & AUDIO-REACTIVE CUES\n- No measured section timing was available for this brief " +
+        "(project-level prompt, or structural segmentation was not reliable for the source track).\n",
+    );
+  }
+
+  lines.push(GUARDRAIL);
+
+  return {
+    kind: "ltx",
+    title: "LTX visual brief",
+    body: lines.join("\n"),
+    caveats: [
+      "This is a creative brief in LTX's general problem shape (audio-to-video), not a validated LTX parameter file — Soundprint does not implement or claim support for LTX's actual parameter contract.",
+      "Timing marked 'measured' comes straight from the analyzer's section/energy detection. Mood and visual language are Soundprint's interpretation, not a measurement.",
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------- comfyui
+function renderComfyUI(ctx: RenderContext): RenderedPrompt {
+  const { dna } = ctx;
+  const t = ctx.measuredTiming;
+
+  const structured = {
+    soundprint_workflow_brief: {
+      version: "1.0",
+      note:
+        "Descriptive handoff data for building a ComfyUI workflow by hand. This is NOT an " +
+        "importable ComfyUI node graph — Soundprint does not generate or validate ComfyUI graphs.",
+      tempo_bpm: dna.tempo.bpm,
+      duration_seconds: t?.durationSeconds ?? null,
+      sections: t?.sections.length
+        ? t.sections.map((s) => ({ start: s.start, end: s.end, character: s.character }))
+        : [],
+      mood: dna.emotion.primary,
+      visual_concepts: [
+        dna.production.warmth_brightness,
+        dna.dynamics.contrast,
+        dna.arrangement.transition_style,
+      ].filter(nonEmpty),
+      preserve: dna.generation_guidance.preserve,
+      avoid: [...dna.generation_guidance.avoid, ...dna.creative_interpretation.what_not_to_copy],
+    },
+  };
+
+  const brief: string[] = [];
+  brief.push("WORKFLOW BRIEF\n");
+  brief.push(
+    "Structured handoff for a ComfyUI creative workflow. The JSON block below is descriptive " +
+      "data — not a node graph — for building or scripting a workflow around; nothing here has " +
+      "been validated against ComfyUI's actual node/graph schema.\n",
+  );
+
+  const timing = timingLines(ctx);
+  if (timing.length) brief.push(`TIMING (measured)\n${timing.map((l) => `- ${l}`).join("\n")}\n`);
+
+  const visual = [dna.production.warmth_brightness, dna.dynamics.contrast, ...dna.production.texture].filter(
+    nonEmpty,
+  );
+  if (visual.length) brief.push(`VISUAL/MOTION CONCEPTS (interpreted)\n${visual.map((v) => `- ${v}`).join("\n")}\n`);
+
+  brief.push(`STRUCTURED DATA\n${JSON.stringify(structured, null, 2)}\n`);
+  brief.push(GUARDRAIL);
+
+  return {
+    kind: "comfyui",
+    title: "ComfyUI workflow brief",
+    body: brief.join("\n"),
+    caveats: [
+      "The JSON block is descriptive handoff data, not an importable ComfyUI node graph — Soundprint does not generate or validate ComfyUI graphs.",
+      "Use it as reference while building a workflow by hand, or as input to your own graph-construction script.",
+    ],
+  };
+}
+
+// -------------------------------------------------------------------- snap_lens
+function renderSnapLens(ctx: RenderContext): RenderedPrompt {
+  const { dna } = ctx;
+  const lines: string[] = [];
+
+  lines.push("LENS STUDIO CREATIVE BRIEF\n");
+  lines.push(
+    "Written as a creative brief for a Snap Lens Studio project — not an exported or " +
+      "functioning Lens project, which Soundprint does not produce.\n",
+  );
+
+  const behaviour = [
+    dna.emotion.primary.length ? `Overall mood: ${dna.emotion.primary.join(", ")}` : null,
+    dna.production.warmth_brightness,
+    dna.dynamics.contrast ? `Reactive intensity should track: ${dna.dynamics.contrast.toLowerCase()}` : null,
+  ].filter(nonEmpty);
+  if (behaviour.length) lines.push(`VISUAL BEHAVIOUR\n${behaviour.map((b) => `- ${b}`).join("\n")}\n`);
+
+  const motion = [dna.rhythm.groove, dna.bass.movement, dna.arrangement.transition_style].filter(nonEmpty);
+  if (motion.length) lines.push(`REACTIVE MOTION CONCEPTS (interpreted)\n${motion.map((m) => `- ${m}`).join("\n")}\n`);
+
+  const timing = timingLines(ctx);
+  if (timing.length) lines.push(`TIMING CUES (measured)\n${timing.map((t) => `- ${t}`).join("\n")}\n`);
+
+  lines.push(
+    "SPATIAL / AR IDEAS (interpreted)\n" +
+      `- ${dna.production.stereo_width ? `Stereo image (${dna.production.stereo_width.toLowerCase()}) suggests how wide/enveloping a spatial effect should read` : "Use the mood and intensity cues above to drive a spatial/AR effect's scale and reach"}\n`,
+  );
+
+  lines.push(GUARDRAIL);
+
+  return {
+    kind: "snap_lens",
+    title: "Snap Lens Studio brief",
+    body: lines.join("\n"),
+    caveats: [
+      "A creative brief for building a Lens by hand in Lens Studio — not an exported or functioning Lens project.",
+      "Timing marked 'measured' is real; visual/motion/spatial language is Soundprint's interpretation.",
+    ],
+  };
+}
+
 const RENDERERS: Record<PromptKind, (ctx: RenderContext) => RenderedPrompt> = {
   generic: renderGeneric,
-  suno: renderSuno,
   udio: renderUdio,
   producer: renderProducer,
   plaintext: renderPlaintext,
+  ltx: renderLtx,
+  comfyui: renderComfyUI,
+  snap_lens: renderSnapLens,
 };
 
 export function renderPrompt(kind: PromptKind, ctx: RenderContext): RenderedPrompt {
@@ -573,10 +688,25 @@ export function renderPrompt(kind: PromptKind, ctx: RenderContext): RenderedProm
   };
 }
 
-export const PROMPT_KINDS: { kind: PromptKind; label: string; blurb: string }[] = [
-  { kind: "generic", label: "Generic", blurb: "Detailed, readable creative instruction" },
-  { kind: "suno", label: "Suno", blurb: "Compact style descriptor" },
-  { kind: "udio", label: "Udio", blurb: "Descriptive free-text prompt" },
-  { kind: "producer", label: "Producer brief", blurb: "Written for a human collaborator" },
-  { kind: "plaintext", label: "Plain text DNA", blurb: "Copyable structured summary" },
+/**
+ * Grouped around what the user wants to do, not a flat list of platforms —
+ * `data` is the vendor-neutral tier the canonical Sound DNA never depends on
+ * any of the others existing; `video`/`workflow`/`ar` are creative handoffs
+ * to specific tools, each honest about what it actually produces.
+ */
+export const PROMPT_KINDS: { kind: PromptKind; label: string; blurb: string; category: PromptCategory }[] = [
+  { kind: "generic", label: "Generic", blurb: "Detailed, readable creative instruction", category: "data" },
+  { kind: "udio", label: "Udio", blurb: "Descriptive free-text prompt", category: "data" },
+  { kind: "producer", label: "Producer brief", blurb: "Written for a human collaborator", category: "data" },
+  { kind: "plaintext", label: "Plain text DNA", blurb: "Copyable structured summary", category: "data" },
+  { kind: "ltx", label: "LTX", blurb: "Audio-to-video visual brief", category: "video" },
+  { kind: "comfyui", label: "ComfyUI", blurb: "Structured workflow handoff", category: "workflow" },
+  { kind: "snap_lens", label: "Snap Lens Studio", blurb: "AR/Lens creative brief", category: "ar" },
+];
+
+export const PROMPT_CATEGORIES: { category: PromptCategory; label: string; blurb: string }[] = [
+  { category: "video", label: "Video / Visual", blurb: "Audio-to-video generation briefs" },
+  { category: "workflow", label: "Workflow", blurb: "Structured handoffs for building a pipeline" },
+  { category: "ar", label: "AR / Lens", blurb: "Augmented-reality creative briefs" },
+  { category: "data", label: "Data / JSON", blurb: "Vendor-neutral Sound DNA and music-generation prompts" },
 ];

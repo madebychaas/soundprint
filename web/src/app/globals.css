@@ -224,10 +224,6 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   border: 1px solid rgba(139, 92, 246, 0.16);
 }
 
-.sp-field {
-  container-type: inline-size;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .sp-breathe,
   .sp-drift,

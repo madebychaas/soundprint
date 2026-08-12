@@ -17,6 +17,7 @@ import {
   type Modifiers,
   PROMPT_KINDS,
   type PromptKind,
+  type RenderContext,
   renderPrompt,
 } from "@/lib/prompts/renderers";
 import { loadTasteProfile } from "@/lib/taste/engine";
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
   let sourceTitle: string | null = null;
   let sourceArtist: string | null = null;
   let sharedTraits: string[] | undefined;
+  let measuredTiming: RenderContext["measuredTiming"];
 
   if (body.referenceId) {
     const loaded = loadReference(body.referenceId);
@@ -65,6 +67,24 @@ export async function POST(request: Request) {
     dna = loaded.dna;
     sourceTitle = loaded.reference.title;
     sourceArtist = loaded.reference.artist;
+
+    // Measured timing for the visual/workflow renderers (LTX, ComfyUI) — only
+    // meaningful for a single reference, which is why this stays inside this
+    // branch rather than being computed for the project-level path below.
+    if (loaded.analysis) {
+      measuredTiming = {
+        durationSeconds: loaded.analysis.metadata.duration_seconds,
+        sections: loaded.analysis.structure.segments.map((s) => ({
+          label: s.label,
+          start: s.start,
+          end: s.end,
+          character: s.character,
+        })),
+        sectionsReliable: loaded.analysis.structure.reliable,
+        energyTrajectoryShape: loaded.analysis.timeline.energy_trajectory_shape,
+        peakEnergyTime: loaded.analysis.timeline.peak_energy_time,
+      };
+    }
   } else if (body.projectId) {
     const refs = loadProjectReferences(body.projectId).filter((r) => r.dna && r.analysis);
     if (refs.length === 0) {
@@ -119,6 +139,7 @@ export async function POST(request: Request) {
     tasteTraits,
     sourceTitle,
     sourceArtist,
+    measuredTiming,
   });
 
   if (body.save) {

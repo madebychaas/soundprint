@@ -190,8 +190,13 @@ export const COMPARABLE_FEATURES: {
 /**
  * Population ids are machine-shaped ("tag: mode-minor"); readers are not.
  * Without this, claims render as "lower than most tag: mode-minor tracks".
+ * Exported: the discovery-field orbit chip uses it to name the population
+ * inline rather than only in a hover tooltip. See docs/CLAIM_AUDIT.md —
+ * a percentile shown without its population is exactly the overclaim this
+ * function exists to prevent in the generated sentence; it needs to prevent
+ * it in the compact chip too.
  */
-function readablePopulation(name: string, kind: ContextKind): string {
+export function readablePopulation(name: string, kind: ContextKind): string {
   const cleaned = name
     .replace(/^(genre|mood|instrument|tag):\s*/i, "")
     .replace(/^mode-(major|minor)$/i, "$1-key")
@@ -425,4 +430,40 @@ export function distinctiveHighlights(contexts: FeatureContext[], limit = 6): Fe
     .sort((a, b) => b.extremity - a.extremity)
     .slice(0, limit)
     .map((x) => x.ctx);
+}
+
+/** Plain, JSON-serialisable summary of one comparative finding — no methods,
+ * no nested population-resolution logic, safe to pass into a client component. */
+export interface WorldContextRow {
+  feature: string;
+  label: string;
+  percentile: number;
+  populationName: string;
+  n: number;
+}
+
+/**
+ * Resolve `FeatureContext[]` down to what a display surface actually needs.
+ *
+ * This exists specifically so client components never import `primaryContext`
+ * (or anything else from this module) at runtime: this module transitively
+ * imports `./client`, which touches the SQLite baseline file via `node:fs` —
+ * fine in a server component, but bundling it for the browser fails outright
+ * ("Reading from node:fs is not handled by plugins"). Resolve on the server,
+ * pass plain data down.
+ */
+export function resolveWorldContextRows(highlights: FeatureContext[]): WorldContextRow[] {
+  const rows: WorldContextRow[] = [];
+  for (const h of highlights) {
+    const best = primaryContext(h.contexts);
+    if (!best || best.percentile === null) continue;
+    rows.push({
+      feature: h.feature,
+      label: h.label,
+      percentile: best.percentile,
+      populationName: best.populationName,
+      n: best.n,
+    });
+  }
+  return rows;
 }

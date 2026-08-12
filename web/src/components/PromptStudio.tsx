@@ -9,9 +9,15 @@
  * modifier is added as an explicit instruction to depart from them.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { PROMPT_KINDS, type Modifiers, type PromptKind } from "@/lib/prompts/renderers";
+import {
+  PROMPT_CATEGORIES,
+  PROMPT_KINDS,
+  type Modifiers,
+  type PromptCategory,
+  type PromptKind,
+} from "@/lib/prompts/renderers";
 
 interface Props {
   referenceId?: string;
@@ -31,6 +37,18 @@ const SLIDERS: { key: keyof Modifiers; left: string; right: string; label: strin
 
 export function PromptStudio({ referenceId, projectId, title, subtitle, hasTasteProfile }: Props) {
   const [kind, setKind] = useState<PromptKind>("generic");
+  const [category, setCategory] = useState<PromptCategory>("data");
+
+  function pickKind(k: PromptKind) {
+    setKind(k);
+    const found = PROMPT_KINDS.find((p) => p.kind === k);
+    if (found) setCategory(found.category);
+  }
+
+  const destinationsInCategory = useMemo(
+    () => PROMPT_KINDS.filter((k) => k.category === category),
+    [category],
+  );
   const [modifiers, setModifiers] = useState<Modifiers>({
     mood: 0,
     energy: 0,
@@ -100,12 +118,31 @@ export function PromptStudio({ referenceId, projectId, title, subtitle, hasTaste
       <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
         <aside className="space-y-5">
           <div className="rounded border border-line bg-surface p-4">
-            <div className="eyebrow mb-3">Format</div>
-            <div className="space-y-1">
-              {PROMPT_KINDS.map((k) => (
+            <div className="eyebrow mb-3">Create for</div>
+            {/* Category first, not a flat wall of destinations — pick what
+                you're making before which specific tool it's for. */}
+            <div className="flex flex-wrap gap-1.5">
+              {PROMPT_CATEGORIES.map((c) => (
+                <button
+                  key={c.category}
+                  onClick={() => setCategory(c.category)}
+                  title={c.blurb}
+                  className={`rounded-full border px-2.5 py-1.5 text-[12px] transition-colors ${
+                    category === c.category
+                      ? "border-signal/50 bg-signal-wash text-signal"
+                      : "border-line text-ink-2 hover:border-line-bright hover:text-ink"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-3 space-y-1">
+              {destinationsInCategory.map((k) => (
                 <button
                   key={k.kind}
-                  onClick={() => setKind(k.kind)}
+                  onClick={() => pickKind(k.kind)}
                   className={`block w-full rounded px-3 py-2 text-left transition-colors ${
                     kind === k.kind ? "bg-signal-wash text-signal" : "text-ink-2 hover:bg-surface-2"
                   }`}

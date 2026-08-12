@@ -75,49 +75,57 @@ describe("PromptRenderer", () => {
     });
   });
 
-  describe("Suno renderer", () => {
-    it("produces a compact comma-separated style descriptor", () => {
-      const p = renderPrompt("suno", { dna: dna() });
-      expect(p.body).toMatch(/^STYLE\n/);
-      const style = p.body.split("\n")[1];
-      expect(style.split(",").length).toBeGreaterThan(2);
-      expect(style.length).toBeLessThan(600);
+  describe("Suno removal", () => {
+    it("no longer offers Suno as a named destination", () => {
+      expect(PROMPT_KINDS.some((k) => (k.kind as string) === "suno")).toBe(false);
+    });
+  });
+
+  describe("visual/workflow/AR renderers (LTX, ComfyUI, Snap Lens Studio)", () => {
+    it("are honest that they don't produce a validated/importable/exported artifact", () => {
+      for (const kind of ["ltx", "comfyui", "snap_lens"] as const) {
+        const p = renderPrompt(kind, { dna: dna() });
+        expect(p.caveats.join(" "), kind).toMatch(/not (a validated|an importable|an exported)/i);
+      }
     });
 
-    /**
-     * Regression guard: compressing on any hyphen split "the delayed,
-     * two-stage energy build" into the tags "delayed" and "two".
-     */
-    it("does not fragment hyphenated or comma-containing traits into junk tags", () => {
-      const p = renderPrompt("suno", {
-        dna: dna({
-          signature_traits: [
-            {
-              trait: "the delayed, two-stage energy build (sparse opening, then a lift)",
-              why_it_matters: null,
-              evidence: [],
-              confidence: 1,
-            },
+    it("ComfyUI's structured block is valid, parseable JSON", () => {
+      const p = renderPrompt("comfyui", { dna: dna() });
+      const match = p.body.match(/\{[\s\S]*\}/);
+      expect(match).not.toBeNull();
+      expect(() => JSON.parse(match![0])).not.toThrow();
+    });
+
+    it("labels measured timing as measured and interpreted mood as interpreted", () => {
+      const p = renderPrompt("ltx", {
+        dna: dna(),
+        measuredTiming: {
+          durationSeconds: 180,
+          sections: [
+            { label: "A", start: 0, end: 30, character: "sparse" },
+            { label: "B", start: 30, end: 90, character: "dense" },
           ],
+          sectionsReliable: true,
+          energyTrajectoryShape: "arch",
+          peakEnergyTime: 90,
+        },
+      });
+      expect(p.body).toMatch(/measured/i);
+      expect(p.body).toMatch(/0:00–0:30/);
+    });
+
+    it("omits timing sections rather than inventing them when no analysis is available", () => {
+      const p = renderPrompt("ltx", { dna: dna() });
+      expect(p.body).toMatch(/No measured section timing was available/);
+    });
+
+    it("carries a hyphen/comma-bearing trait through Snap Lens's motion concepts intact, not fragmented", () => {
+      const p = renderPrompt("snap_lens", {
+        dna: dna({
+          rhythm: { ...emptyDna().rhythm, groove: "the delayed, two-stage energy build (sparse opening, then a lift)" },
         }),
       });
-      const tags = p.body.split("\n")[1].split(",").map((t) => t.trim());
-      expect(tags).not.toContain("two");
-      expect(tags.every((t) => t.length === 0 || t.length > 2)).toBe(true);
-    });
-
-    it("strips uncertainty hedges from the style line", () => {
-      const p = renderPrompt("suno", {
-        dna: dna({ harmony: { ...emptyDna().harmony, key: "A", mode: "minor (uncertain)" } }),
-      });
-      expect(p.body.split("\n")[1]).toContain("minor key");
-      expect(p.body).not.toContain("(uncertain)");
-    });
-
-    it("warns that the platform may not honour parameters", () => {
-      expect(renderPrompt("suno", { dna: dna() }).caveats.join(" ")).toMatch(
-        /does not expose a documented parameter contract/i,
-      );
+      expect(p.body).toMatch(/the delayed, two-stage energy build/);
     });
   });
 

@@ -37,8 +37,10 @@ export default function ProjectsPage() {
       {/* THE FIRST THING ON THE PAGE. Drop a sound, or choose a file — the
           object supports that action, it is not the thing you have to
           understand before you can act. Lands in the most recently used
-          project automatically; creates a first one silently if none exist. */}
-      <div className="sp-field relative mx-auto mt-2 flex min-h-[300px] max-w-xl items-center justify-center sm:min-h-[340px]">
+          project automatically; creates a first one silently if none exist.
+          Full width on purpose: this is the first major horizontal field
+          below the nav, not a narrow centered hero. */}
+      <div className="mt-2">
         <QuickIntakeField defaultProjectId={projects[0]?.id ?? null} />
       </div>
 

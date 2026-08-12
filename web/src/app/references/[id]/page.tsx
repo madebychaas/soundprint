@@ -2,24 +2,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 
-import { EnergyTimeline } from "@/components/EnergyTimeline";
 import { NotesPanel } from "@/components/NotesPanel";
 import { RatingControl } from "@/components/RatingControl";
 import { ReferenceActions } from "@/components/ReferenceActions";
-import { TechnicalPanel } from "@/components/TechnicalPanel";
 import { DiscoveryField } from "@/components/spatial/DiscoveryField";
 import { LiquidObject } from "@/components/spatial/LiquidObject";
 import { LiveStatusBanner } from "@/components/spatial/LiveStatusBanner";
-import { SignatureTraitsStrip } from "@/components/spatial/SignatureTraitsStrip";
-import { TechnicalDrawer } from "@/components/spatial/TechnicalDrawer";
-import { WhyThisWorksField } from "@/components/spatial/WhyThisWorksField";
-import { WorldContextStrip } from "@/components/spatial/WorldContextStrip";
+import { SoundprintExperience } from "@/components/spatial/SoundprintExperience";
 import { comparativeObservations, semanticLabelsFor } from "@/lib/baseline/observations";
-import { distinctiveHighlights } from "@/lib/baseline/contextualize";
+import { distinctiveHighlights, resolveWorldContextRows } from "@/lib/baseline/contextualize";
 import { db, schema } from "@/lib/db";
 import { loadReference } from "@/lib/pipeline";
 import { formatTime } from "@/lib/analysis/types";
-import { buildDiscoveries, knowledgeLevel } from "@/lib/spatial/discoveries";
+import { buildDiscoveries, buildSummaryDiscoveries, knowledgeLevel, shortSummary } from "@/lib/spatial/discoveries";
 
 export const dynamic = "force-dynamic";
 
@@ -45,9 +40,12 @@ export default async function ReferencePage({ params }: { params: Promise<{ id: 
   const comparative = analysis
     ? comparativeObservations(analysis, { semanticLabels: semanticLabelsFor(analysis) })
     : { observations: [], contexts: [], baselineVersion: null };
-  const contextHighlights = distinctiveHighlights(comparative.contexts, 4);
+  // Resolved to plain data here, on the server: SoundprintExperience is a
+  // client component, and anything importing contextualize.ts's runtime code
+  // (primaryContext, etc.) pulls the SQLite baseline client's node:fs usage
+  // into the browser bundle. See resolveWorldContextRows.
+  const contextHighlights = resolveWorldContextRows(distinctiveHighlights(comparative.contexts, 4));
 
-  const discoveries = buildDiscoveries({ analysis, dna, comparative: comparative.contexts });
   const knowledge = knowledgeLevel(analysis, dna);
 
   return (
@@ -99,80 +97,53 @@ export default async function ReferencePage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      {/* -------------------------------------------------------------- 1. THE OBJECT
-          Intake → analysis → orbit → resolution, all in one field. The object
-          itself is present the instant the page renders, even before a single
-          measurement exists — discoveries appear around it as the real
-          pipeline state allows, never before. */}
-      <div className="sp-field relative mx-auto flex min-h-[380px] items-center justify-center sm:min-h-[520px] md:min-h-[600px]">
-        <LiquidObject
+      {dna && analysis ? (
+        // Resolved: progressive disclosure takes over. See SoundprintExperience —
+        // this is deliberately not the same always-expanded stack the working
+        // state below uses; a completed Soundprint is an instrument, not a report.
+        <SoundprintExperience
+          referenceId={id}
           seed={id}
           knowledge={knowledge}
-          active={working}
-          className="relative z-10 h-[150px] w-[150px] sm:h-[210px] sm:w-[210px] md:h-[250px] md:w-[250px]"
+          summaryDiscoveries={buildSummaryDiscoveries({ analysis, dna, comparative: comparative.contexts })}
+          fullDiscoveries={buildDiscoveries({ analysis, dna, comparative: comparative.contexts })}
+          whyShort={shortSummary(dna.why_this_works.summary)}
+          whySummaryWasTruncated={
+            shortSummary(dna.why_this_works.summary) !== (dna.why_this_works.summary?.trim() ?? null)
+          }
+          provenance={provenance}
+          dna={dna}
+          dnaIssues={dnaIssues}
+          analysis={analysis}
+          contextHighlights={contextHighlights}
         />
-        {discoveries.length > 0 && <DiscoveryField nodes={discoveries} seed={id} />}
-      </div>
-
-      {/* ------------------------------------------------------- 2-4. RESOLUTION */}
-      {dna && (
-        <div className="mt-6 space-y-10">
-          <WhyThisWorksField dna={dna} provenance={provenance} issues={dnaIssues} analysis={analysis} />
-          <SignatureTraitsStrip traits={dna.signature_traits} />
-          <WorldContextStrip highlights={contextHighlights} />
-        </div>
-      )}
-
-      {analysis && (
-        <div className="mx-auto mt-10 max-w-4xl">
-          <EnergyTimeline analysis={analysis} />
-        </div>
-      )}
-
-      {/* --------------------------------------------------- 5. deeper measurements */}
-      {analysis ? (
-        <div className="mx-auto mt-6 max-w-4xl">
-          <TechnicalDrawer>
-            <TechnicalPanel analysis={analysis} dna={dna} />
-          </TechnicalDrawer>
-        </div>
       ) : (
-        !working && (
-          <div className="mx-auto mt-6 max-w-4xl rounded-2xl border border-dashed border-line px-6 py-12 text-center text-[13px] text-ink-3">
-            No analysis available for this reference.
+        // Intake → analysis → orbit, before resolution. Nothing to disclose
+        // progressively yet — discoveries appear around the object exactly as
+        // the real pipeline state allows, never before.
+        <>
+          <div className="relative mx-auto flex min-h-[420px] items-center justify-center sm:min-h-[600px] md:min-h-[700px] lg:min-h-[760px]">
+            <LiquidObject
+              seed={id}
+              knowledge={knowledge}
+              active={working}
+              className="relative z-10 h-[120px] w-[120px] sm:h-[230px] sm:w-[230px] md:h-[270px] md:w-[270px]"
+            />
+            {analysis && (
+              <DiscoveryField nodes={buildDiscoveries({ analysis, dna, comparative: comparative.contexts })} seed={id} />
+            )}
           </div>
-        )
+          {!analysis && !working && (
+            <div className="mx-auto mt-6 max-w-4xl rounded-2xl border border-dashed border-line px-6 py-12 text-center text-[13px] text-ink-3">
+              No analysis available for this reference.
+            </div>
+          )}
+        </>
       )}
 
-      {/* --------------------------------------------------------- 6. notes/export */}
-      <div className="mx-auto mt-10 grid max-w-4xl gap-6 sm:grid-cols-2">
+      {/* --------------------------------------------------------- notes */}
+      <div className="mx-auto mt-10 max-w-2xl">
         <NotesPanel referenceId={id} notes={notes.map((n) => ({ id: n.id, body: n.body }))} />
-
-        {analysis && (
-          <div className="rounded-2xl border border-line bg-surface p-4">
-            <div className="eyebrow mb-3">Export</div>
-            <div className="space-y-2">
-              <Link
-                href={`/references/${id}/prompt`}
-                className="block rounded-full bg-signal px-3 py-2 text-center text-[13px] font-medium text-[#14060f] transition-opacity hover:opacity-90"
-              >
-                Open Prompt Studio
-              </Link>
-              <a
-                href={`/api/references/${id}/export?format=json`}
-                className="block rounded-full border border-line px-3 py-2 text-center text-[13px] text-ink-2 transition-colors hover:border-line-bright hover:text-ink"
-              >
-                Download Sound DNA (JSON)
-              </a>
-              <a
-                href={`/api/references/${id}/export?format=analysis`}
-                className="block rounded-full border border-line px-3 py-2 text-center text-[13px] text-ink-2 transition-colors hover:border-line-bright hover:text-ink"
-              >
-                Download raw analysis (JSON)
-              </a>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -10,6 +10,7 @@
 import type { ObjectiveAnalysis } from "@/lib/analysis/types";
 import { formatTime } from "@/lib/analysis/types";
 import type { SoundDna } from "@/lib/dna/schema";
+import { confidenceLabel } from "@/lib/format/confidence";
 
 export function TechnicalPanel({
   analysis,
@@ -332,13 +333,21 @@ function Row({
   confidence?: number | null;
   warn?: boolean;
 }) {
+  // Confidence here is an uncalibrated 0-1 heuristic score, not a margin of
+  // error — "±0.15" next to a value (or, worse, next to a key name) implied a
+  // statistical precision the number cannot support. See docs/CLAIM_AUDIT.md.
+  const conf = value !== null ? confidenceLabel(confidence) : null;
+
   return (
     <div className="grid grid-cols-[130px_100px_1fr] items-baseline gap-3 px-4 py-2.5">
       <span className="text-[12px] text-ink-3">{label}</span>
-      <span className={`tnum text-[12.5px] ${value === null ? "text-ink-4" : warn ? "text-warn" : "text-ink"}`}>
+      <span
+        className={`tnum text-[12.5px] ${value === null ? "text-ink-4" : warn ? "text-warn" : "text-ink"}`}
+        title={conf ? `Confidence score: ${confidence!.toFixed(2)} (relative, not a probability)` : undefined}
+      >
         {value ?? "—"}
-        {confidence !== null && confidence !== undefined && value !== null && (
-          <span className="ml-1.5 text-[10px] text-ink-4">±{(1 - confidence).toFixed(2)}</span>
+        {conf && conf.band !== "high" && (
+          <span className={`ml-1.5 text-[10px] ${conf.className}`}>· {conf.band}</span>
         )}
       </span>
       <span className="text-[12.5px] leading-snug text-ink-2">{reading ?? ""}</span>

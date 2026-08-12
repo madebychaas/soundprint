@@ -32,8 +32,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         )}
       </header>
 
-      {/* THE INTAKE OBJECT — drop a track, or click through to what's already here. */}
-      <div className="sp-field relative mx-auto flex min-h-[320px] items-center justify-center">
+      {/* THE INTAKE OBJECT — drop a track, or click through to what's already here.
+          Full width, same composition as the home page hero. */}
+      <div className="mt-1">
         <IntakeField projectId={id} />
       </div>
 

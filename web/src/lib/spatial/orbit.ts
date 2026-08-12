@@ -26,6 +26,12 @@ export interface DiscoveryNode {
   evidenceIds?: string[];
   /** Measurement domain (observation.category, or a comparative feature's prefix). */
   category?: string | null;
+  /**
+   * Short, human-readable comparison population for a comparative node (e.g.
+   * "minor-key tracks"). A percentile is meaningless — and per
+   * docs/CLAIM_AUDIT.md, misleading — without this visible alongside it.
+   */
+  populationHint?: string | null;
 }
 
 export interface PositionedNode extends DiscoveryNode {
@@ -67,32 +73,46 @@ const GOLDEN_ANGLE = 2.399963229728653; // radians
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/** Radius bands (percent of field half-extent) per knowledge class. */
+/**
+ * Radius bands (percent of field half-extent) per knowledge class.
+ *
+ * Widened from the first pass: discoveries were clustering tight around the
+ * object, leaving the field mostly dead space. These push observed/
+ * comparative/interpreted further out so the webbing between them has real
+ * area to occupy, while `uncertain` stays closest — provisional findings
+ * read as tentative partly *because* they hug the centre rather than
+ * claiming their own territory.
+ */
 const RADIUS_X: Record<DiscoveryKind, [number, number]> = {
-  observed: [20, 29],
-  comparative: [28, 37],
-  interpreted: [36, 45],
-  uncertain: [15, 21],
+  observed: [27, 38],
+  comparative: [37, 48],
+  interpreted: [46, 58],
+  uncertain: [18, 25],
 };
 const RADIUS_Y: Record<DiscoveryKind, [number, number]> = {
-  observed: [15, 23],
-  comparative: [21, 29],
-  interpreted: [27, 34],
-  uncertain: [11, 16],
+  observed: [25, 33],
+  comparative: [31, 39],
+  interpreted: [37, 45],
+  uncertain: [15, 20],
 };
 
 export function layoutDiscoveries(nodes: DiscoveryNode[], seed: string): PositionedNode[] {
   const rand = mulberry32(seedFromString(seed));
   const startAngle = rand() * Math.PI * 2;
 
-  return nodes.map((n, i) => {
+  const positioned = nodes.map((n, i) => {
     const angle = startAngle + i * GOLDEN_ANGLE + (rand() - 0.5) * 0.55;
     const [rxLo, rxHi] = RADIUS_X[n.kind];
     const [ryLo, ryHi] = RADIUS_Y[n.kind];
     const rx = rxLo + rand() * (rxHi - rxLo);
     const ry = ryLo + rand() * (ryHi - ryLo);
-    const x = clamp(50 + Math.cos(angle) * rx, 8, 92);
-    const y = clamp(50 + Math.sin(angle) * ry, 9, 91);
+    // Clamped tighter than the radius bands above would suggest: chips have a
+    // real pixel width, and on a ~360px mobile field an 8%-from-edge centre
+    // point put a 136px-wide chip almost 40px off-screen. These bounds are
+    // the shared safety margin for the narrowest viewport this renders at;
+    // desktop still reads as spread because the radius bands themselves grew.
+    const x = clamp(50 + Math.cos(angle) * rx, 16, 84);
+    const y = clamp(50 + Math.sin(angle) * ry, 12, 88);
     return {
       ...n,
       x,
@@ -101,6 +121,58 @@ export function layoutDiscoveries(nodes: DiscoveryNode[], seed: string): Positio
       delayMs: 90 + i * 85 + Math.floor(rand() * 70),
     };
   });
+
+  relaxOverlaps(positioned);
+
+  // Rounded, not left at full float precision: this field now also renders
+  // inside client components that hydrate (SoundprintExperience), and
+  // Math.sin/cos can differ in the last couple of ULPs between Node's V8 and
+  // a browser's V8 build, which React reports as a hydration mismatch even
+  // though the visual difference is a fraction of a sub-pixel. Two decimal
+  // places is already far more precision than a percentage position needs.
+  for (const p of positioned) {
+    p.x = Math.round(p.x * 100) / 100;
+    p.y = Math.round(p.y * 100) / 100;
+  }
+
+  return positioned;
+}
+
+/**
+ * Golden-angle placement spreads nodes well on average but, for a handful of
+ * items, jitter can still land two of them close enough together that their
+ * chips overlap — a real legibility failure, not a stylistic one. This is a
+ * cheap pairwise relaxation, not a physics sim: a few passes pushing any pair
+ * closer than a minimum separation apart, symmetrically, then re-clamped to
+ * the field. `dy` is weighted up because the field is noticeably wider than
+ * it is tall, so an equal x/y percent gap is a much smaller pixel gap
+ * vertically — left unweighted, vertical overlaps were the ones slipping
+ * through.
+ */
+function relaxOverlaps(nodes: PositionedNode[]) {
+  const MIN_SEPARATION = 15;
+  const Y_WEIGHT = 1.6;
+
+  for (let pass = 0; pass < 4; pass++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const dx = b.x - a.x;
+        const dy = (b.y - a.y) * Y_WEIGHT;
+        const dist = Math.hypot(dx, dy) || 0.0001;
+        if (dist >= MIN_SEPARATION) continue;
+
+        const push = (MIN_SEPARATION - dist) / 2;
+        const ux = dx / dist;
+        const uy = dy / dist;
+        a.x = clamp(a.x - ux * push, 16, 84);
+        a.y = clamp(a.y - (uy * push) / Y_WEIGHT, 12, 88);
+        b.x = clamp(b.x + ux * push, 16, 84);
+        b.y = clamp(b.y + (uy * push) / Y_WEIGHT, 12, 88);
+      }
+    }
+  }
 }
 
 /**

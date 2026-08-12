@@ -18,8 +18,8 @@
  */
 
 import type { Observation, ObjectiveAnalysis } from "@/lib/analysis/types";
-import type { FeatureContext } from "@/lib/baseline/contextualize";
-import { primaryContext } from "@/lib/baseline/contextualize";
+import type { ContextResult, FeatureContext } from "@/lib/baseline/contextualize";
+import { primaryContext, readablePopulation } from "@/lib/baseline/contextualize";
 import type { SoundDna } from "@/lib/dna/schema";
 import type { DiscoveryNode } from "./orbit";
 
@@ -83,6 +83,7 @@ export function buildDiscoveries(params: {
       percentile: best.percentile,
       confidence: best.strength === "strong" ? 0.85 : 0.5,
       category: ctx.feature.split(".")[0],
+      populationHint: readablePopulation(best.populationName, best.kind),
     });
   }
 
@@ -123,4 +124,97 @@ export function knowledgeLevel(analysis: ObjectiveAnalysis | null, dna: SoundDna
   if (dna) return 1;
   if (analysis) return 0.55;
   return 0.1;
+}
+
+const SUMMARY_MAX = 7;
+
+/**
+ * The default-visible set for a completed Soundprint: tempo, tonal centre
+ * (with its own ambiguity if the analyzer found any), the single strongest
+ * comparative finding that actually cleared the gate, and 2-4 signature
+ * traits — 5-7 objects total, per the progressive-disclosure brief. Everything
+ * else `buildDiscoveries()` would show is still real and still one click away
+ * via "Explore DNA"; this function only decides what's on by default.
+ */
+export function buildSummaryDiscoveries(params: {
+  analysis: ObjectiveAnalysis | null;
+  dna: SoundDna | null;
+  comparative: FeatureContext[];
+}): DiscoveryNode[] {
+  const { analysis, dna, comparative } = params;
+  if (!analysis) return [];
+
+  const nodes: DiscoveryNode[] = [];
+  const byId = new Map(analysis.observations.map((o) => [o.id, o]));
+
+  const tempoObs = byId.get("tempo.bpm");
+  if (tempoObs) {
+    nodes.push({ id: tempoObs.id, kind: "observed", label: tempoObs.text, category: tempoObs.category });
+  }
+
+  // The analyzer emits exactly one of these two ids for a given track, and
+  // the ambiguous one already states the competing candidates in its text —
+  // showing it as "uncertain" here rather than "observed" is the whole point.
+  const ambiguousKey = byId.get("harmony.key_ambiguous");
+  const plainKey = byId.get("harmony.key");
+  const keyObs = ambiguousKey ?? plainKey;
+  if (keyObs) {
+    nodes.push({
+      id: keyObs.id,
+      kind: ambiguousKey ? "uncertain" : "observed",
+      label: keyObs.text,
+      category: keyObs.category,
+    });
+  }
+
+  const strongest = comparative
+    .map((ctx) => ({ ctx, primary: primaryContext(ctx.contexts) }))
+    .filter(
+      (x): x is { ctx: FeatureContext; primary: ContextResult } =>
+        x.primary !== null && x.ctx.interpretationSafeStatement !== null,
+    )
+    .sort(
+      (a, b) => Math.abs((b.primary.percentile ?? 50) - 50) - Math.abs((a.primary.percentile ?? 50) - 50),
+    )[0];
+  if (strongest) {
+    nodes.push({
+      id: `context.${strongest.ctx.feature}`,
+      kind: "comparative",
+      label: strongest.ctx.label,
+      detail: strongest.ctx.interpretationSafeStatement,
+      percentile: strongest.primary.percentile,
+      confidence: strongest.primary.strength === "strong" ? 0.85 : 0.5,
+      category: strongest.ctx.feature.split(".")[0],
+      populationHint: readablePopulation(strongest.primary.populationName, strongest.primary.kind),
+    });
+  }
+
+  if (dna) {
+    const traitBudget = Math.max(2, Math.min(4, SUMMARY_MAX - nodes.length));
+    for (const t of dna.signature_traits.slice(0, traitBudget)) {
+      nodes.push({
+        id: `trait.${slug(t.trait)}.${nodes.length}`,
+        kind: "interpreted",
+        label: t.trait,
+        detail: t.why_it_matters,
+        confidence: t.confidence,
+        evidenceIds: t.evidence,
+      });
+    }
+  }
+
+  return nodes;
+}
+
+/**
+ * "2-3 sentences" by default for Why This Works — the full multi-sentence
+ * synthesis is unchanged and still rendered whole in the expanded surface;
+ * this only decides how much of it is visible before that click.
+ */
+export function shortSummary(text: string | null, maxSentences = 2): string | null {
+  if (!text) return null;
+  const trimmed = text.trim();
+  const sentences = trimmed.match(/[^.!?]+[.!?]+(\s+|$)/g);
+  if (!sentences || sentences.length <= maxSentences) return trimmed;
+  return sentences.slice(0, maxSentences).join("").trim();
 }

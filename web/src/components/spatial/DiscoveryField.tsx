@@ -31,13 +31,18 @@ const KIND_LABEL: Record<DiscoveryNode["kind"], string> = {
 export function DiscoveryField({
   nodes,
   seed,
-  onNodeClick,
-  mobileVisibleCount = 6,
+  onSelect,
+  selectedId,
+  mobileVisibleCount = 5,
 }: {
   nodes: DiscoveryNode[];
   seed: string;
-  /** Optional: id of a node to render as an <a href> target instead of a div (progressive disclosure anchors). */
-  onNodeClick?: (id: string) => string | null;
+  /** Click-to-inspect: SUMMARY → TRAIT without a page navigation. Omit for a
+   * purely decorative field (nothing currently renders one that way, but the
+   * field shouldn't require interactivity to make sense visually). */
+  onSelect?: (id: string) => void;
+  /** The currently-inspected node, if any — gets a highlighted ring. */
+  selectedId?: string | null;
   /** Nodes are already priority-ordered (interpreted → comparative → observed →
    * uncertain); beyond this index they're hidden on narrow viewports so a
    * phone never has to render 18 decorative chips at once. */
@@ -97,15 +102,17 @@ export function DiscoveryField({
       </svg>
 
       {positioned.map((n) => {
-        const href = onNodeClick?.(n.id) ?? null;
-        const Tag = href ? "a" : "div";
+        const Tag = onSelect ? "button" : "div";
+        const isSelected = n.id === selectedId;
         return (
           <Tag
             key={n.id}
-            {...(href ? { href } : {})}
-            className={`sp-node pointer-events-auto absolute max-w-[168px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-2.5 py-1.5 shadow-[0_4px_24px_rgba(0,0,0,0.35)] backdrop-blur-sm transition-transform hover:z-20 hover:scale-[1.04] ${
+            {...(onSelect
+              ? { type: "button" as const, onClick: () => onSelect(n.id) }
+              : {})}
+            className={`sp-node pointer-events-auto absolute max-w-[104px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-2 py-1.5 text-left shadow-[0_4px_24px_rgba(0,0,0,0.35)] backdrop-blur-sm transition-transform hover:z-20 hover:scale-[1.04] sm:max-w-[210px] sm:px-3 sm:py-2 ${
               n.order >= mobileVisibleCount ? "hidden sm:block" : ""
-            } ${KIND_STYLE[n.kind]} ${n.kind === "interpreted" ? "text-[12.5px]" : "text-[11px]"}`}
+            } ${isSelected ? "z-20 scale-[1.06] ring-1 ring-fuchsia" : ""} ${KIND_STYLE[n.kind]} ${n.kind === "interpreted" ? "text-[11px] sm:text-[13.5px]" : "text-[10px] sm:text-[12px]"}`}
             style={{
               left: `${n.x}%`,
               top: `${n.y}%`,
@@ -134,6 +141,12 @@ export function DiscoveryField({
               )}
             </div>
             <p className="leading-snug line-clamp-3">{n.label}</p>
+            {/* A percentile with no visible population is a claim about
+                nothing in particular — docs/CLAIM_AUDIT.md. Named here, not
+                only in the hover title, so it's not lost on touch. */}
+            {n.populationHint && (
+              <p className="mt-0.5 truncate text-[9px] text-ink-4">vs {n.populationHint}</p>
+            )}
           </Tag>
         );
       })}
