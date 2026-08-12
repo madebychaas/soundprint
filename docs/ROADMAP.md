@@ -6,6 +6,16 @@ implementation difficulty.
 
 ---
 
+## Shipped — Pass 2A (world intelligence + portability)
+
+World baseline v2 (309k tracks, 7.56M AcousticBrainz measurements, 473
+distributions) · source-balanced weighting with measured anti-skew · claim
+gating · four comparison contexts · feature ontology separating semantic from
+acoustic evidence · 347-track coverage-stratified native benchmark ·
+personalization boundary enforced by schema constraint · ffmpeg standard ·
+pinned toolchain · environment-driven config · dependency-aware health checks ·
+containers (unverified) · migration runbook · 212 tests.
+
 ## Shipped (MVP)
 
 Projects · multi-file upload (mp3/wav/flac/m4a/aiff/ogg) · objective analysis
@@ -19,6 +29,13 @@ degradation throughout.
 ---
 
 ## Next
+
+### 0. A third independent numeric source
+
+AcousticBrainz holds 92% of tempo weight even after balancing, so every global
+comparative claim is capped at "descriptive". One more corpus with comparable
+numeric features would lift global claims to "strong" — a larger improvement to
+perceived intelligence than any new feature.
 
 ### 1. Source separation
 

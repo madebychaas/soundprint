@@ -1,22 +1,26 @@
 """Audio decoding with graceful format fallbacks.
 
 libsndfile (bundled with soundfile>=0.12) natively handles WAV, FLAC, OGG and
-MP3. It does *not* handle M4A/AAC/ALAC. Rather than making ffmpeg a hard
-requirement, we fall back through a chain of transcoders that are commonly
-available, preferring whatever exists on the host:
+MP3. It does *not* handle M4A/AAC/ALAC, so those need a transcode hop:
 
     1. libsndfile direct       (wav, flac, ogg, mp3)
-    2. ffmpeg                  (anything, if installed)
-    3. afconvert               (macOS built-in — handles m4a/aac/alac/caf)
+    2. ffmpeg                  THE STANDARD — required for full format support
+    3. afconvert               optional macOS-only fallback
 
-This keeps the default install light while still supporting the formats the
-product promises. If none of the fallbacks can read a file we raise
-DecodeError, which the API turns into a clean 415 rather than a stack trace.
+**ffmpeg is the supported production transcoder.** `afconvert` is kept because
+it ships with macOS and spares a first-run install on a developer laptop, but
+nothing in production depends on it: a Linux container with ffmpeg has the
+complete supported format set, and a host with neither still handles every
+libsndfile-native format.
+
+Binary locations come from config (FFMPEG_PATH / AFCONVERT_PATH) so a container
+or an unusual install layout needs no code change. If nothing can read a file we
+raise DecodeError, which the API turns into a clean 415 rather than a stack
+trace.
 """
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -24,6 +28,8 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
+
+from .config import CONFIG
 
 
 class DecodeError(Exception):
@@ -86,32 +92,36 @@ def _transcode_to_wav(src: Path) -> Path:
     Returns the temp path; the caller owns cleanup.
     """
     tmp = Path(tempfile.mkstemp(suffix=".wav", prefix="soundprint_")[1])
+    timeout = CONFIG.transcode_timeout_seconds
 
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg:
+    if CONFIG.ffmpeg_path:
         proc = subprocess.run(
-            [ffmpeg, "-y", "-i", str(src), "-map", "0:a:0", "-c:a", "pcm_s16le", str(tmp)],
+            [CONFIG.ffmpeg_path, "-y", "-i", str(src), "-map", "0:a:0",
+             "-c:a", "pcm_s16le", str(tmp)],
             capture_output=True,
-            timeout=180,
+            timeout=timeout,
         )
         if proc.returncode == 0 and tmp.stat().st_size > 44:
             return tmp
 
-    afconvert = shutil.which("afconvert")
-    if afconvert:
+    if CONFIG.afconvert_path:
         # -f WAVE -d LEI16: little-endian 16-bit PCM in a WAV container.
         proc = subprocess.run(
-            [afconvert, "-f", "WAVE", "-d", "LEI16", str(src), str(tmp)],
+            [CONFIG.afconvert_path, "-f", "WAVE", "-d", "LEI16", str(src), str(tmp)],
             capture_output=True,
-            timeout=180,
+            timeout=timeout,
         )
         if proc.returncode == 0 and tmp.stat().st_size > 44:
             return tmp
 
     tmp.unlink(missing_ok=True)
     raise DecodeError(
-        f"Could not decode {src.suffix or 'file'}: no working transcoder found.",
-        hint="Install ffmpeg (`brew install ffmpeg`) to enable m4a/aac and other container formats.",
+        f"Could not decode {src.suffix or 'file'}: no working transcoder available.",
+        hint=(
+            "Install ffmpeg to enable m4a/aac and other container formats "
+            "(`brew install ffmpeg`, `apt install ffmpeg`), or set FFMPEG_PATH "
+            "if it is installed somewhere unusual."
+        ),
     )
 
 

@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:push": "tsx src/lib/db/migrate.ts"
+    "db:push": "tsx src/lib/db/migrate.ts",
+    "test:all": "vitest run",
+    "baseline:status": "python3 -m soundprint_baseline status"
   },
   "dependencies": {
     "drizzle-orm": "^0.38.3",
@@ -28,5 +30,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=22.5.0"
   }
 }

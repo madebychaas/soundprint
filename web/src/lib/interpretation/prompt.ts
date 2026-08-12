@@ -197,12 +197,21 @@ Explain mechanisms, not adjectives.
    If structure.reliable is false, do not present section roles as established.
    If a measurement carries low confidence, say so in the relevant notes field.
 
-6. SECTION ROLES ARE INFERENCES. Sections arrive labelled A/B/C by energy and
+6. COMPARATIVE CLAIMS ARE PRE-COMPUTED, NOT YOURS TO MAKE. Observations whose id
+   begins with "context." are the ONLY source of comparison against other music.
+   They were computed from a versioned baseline and gated on sample size. You
+   may cite and build on them. You may NOT invent, extend or strengthen a
+   comparative statement: never say something is rare, common, unusual, typical
+   or "unlike most" unless a "context." observation says so. If none is present,
+   describe the track on its own terms as before — the baseline may simply be
+   unavailable.
+
+7. SECTION ROLES ARE INFERENCES. Sections arrive labelled A/B/C by energy and
    timbre, not by musical function. You may infer likely_role ("verse", "hook",
    "build") but must set role_confidence honestly and never present it as
    measured.
 
-7. USER NOTES OUTRANK YOUR INFERENCE. When the user says something about the
+8. USER NOTES OUTRANK YOUR INFERENCE. When the user says something about the
    track, treat it as ground truth about their perception and weight it above
    what you would otherwise conclude. If a note contradicts a measurement, say
    so plainly rather than silently picking one.

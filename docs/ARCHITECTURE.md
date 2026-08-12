@@ -326,3 +326,142 @@ arrives at 1:08" is far more convincing when the low-end trace visibly steps up
 there.
 
 Polling stops once nothing is in flight.
+
+---
+
+# Pass 2A: comparative context and portability
+
+v0 could describe a track. It could not say whether anything about it was
+*distinctive*, because it had nothing to compare against. Pass 2A adds a world
+knowledge layer, and the architectural work is almost entirely about keeping
+that knowledge from contaminating the things it must not touch.
+
+## The pipeline gains one stage
+
+```
+RAW AUDIO
+   -> OBJECTIVE MEASUREMENT     what the signal contains
+   -> OBSERVATIONS              measurements restated, with ids
+   -> COMPARATIVE CONTEXT       <-- new: relative to what?
+   -> INTERPRETATION            what it means
+   -> PERSONAL TASTE RELEVANCE  what it means to this listener
+```
+
+Comparative context is computed *before* the model runs and handed to it as
+finished, pre-gated sentences carrying `context.*` observation ids. The model
+may cite them; it may not manufacture them. The system prompt says so
+explicitly, and the phrasing is produced by code, not by the model.
+
+This reuses the v0 evidence machinery rather than replacing it. Why This Works
+already renders claims with their citations; comparative findings arrive as
+more observations and flow through unchanged. No rewrite.
+
+## Three separations, all structural
+
+**World vs person.** Two databases, two files, two lifecycles. Every world
+record carries `taste_weight` with a `CHECK (taste_weight = 0)` constraint, so
+the database rejects any attempt to raise it. The baseline schema contains no
+ratings, taste or notes table — it physically cannot hold a preference.
+
+**Created vs liked.** `origin_role` distinguishes `created`, `context` and
+`catalog`. Tracks made via the optional local creator-context seed say something about what the user
+makes and nothing reliable about what they like. There is no `liked` role in
+the world schema at all; preference lives exclusively in the application
+database.
+
+**Synthetic vs observed.** `evidence_class` is constrained to two values, and
+the factual global population filters on `observed` in its own WHERE clause
+rather than trusting callers to remember.
+
+## Row counts must not define "normal"
+
+The hardest design problem in this pass, and the one where the first
+implementation was wrong.
+
+AcousticBrainz contributes 7.56M tempo observations; FMA contributes 13,129.
+Pooling by count makes "typical music" mean "typical AcousticBrainz". So
+distributions are weighted, with a ceiling on any one source.
+
+But capping alone overcorrects: cap-then-renormalise hands FMA's 13k tracks 60%
+of the weight, each counting for ~3,400 AcousticBrainz tracks. Balanced
+arithmetically, worthless statistically. A second bound was needed — a limit on
+how far a small source may be *lifted* — so the correction moves toward parity
+only as far as the data honestly allows.
+
+Result on the real corpus: AcousticBrainz 99.83% natural share becomes 92.03%
+effective. Still lopsided, and the claim gate reads `max_source_share` and
+downgrades global claims to descriptive language accordingly. The measured
+anti-skew property: duplicating a source tenfold shifts its influence by
++0.005.
+
+## Claims are gated before they are phrased
+
+`ClaimGate` returns `none`, `descriptive` or `strong`. An unsupported claim is
+never written and then hedged; it is not written. Below 200 observations there
+is no comparison at all. A global claim from a single source is refused
+outright, because a claim backed by one corpus is a claim about that corpus.
+
+Because AcousticBrainz dominates tempo, global tempo claims currently resolve
+to `descriptive` and never `strong`. That is the gate working correctly, not a
+gap to be tuned away.
+
+## Semantic evidence is not acoustic evidence
+
+Genre, mood and instrument labels live in `world_label`; numbers live in
+`world_external_feature` and `world_native_feature`. A track tagged "dark" is
+evidence that someone applied the word, not a brightness measurement. The
+`ontology_term` table records `maps_to` for identity and `correlates_with` for
+association, and only `maps_to` resolves a query.
+
+Numeric features carry a comparability grade. Essentia BPM and Soundprint BPM
+are `same_quantity` and poolable; their spectral centroids are `same_rank_only`
+because the window and sample rate differ. Only `same_quantity` features pool
+across datasets, because pooling incomparable extractors produces a
+distribution that looks authoritative and means nothing.
+
+## Native benchmark
+
+External features come from other people's extractors, and for anything
+Soundprint measures that nobody else does there is no external distribution at
+all. So CC-licensed audio is run through Soundprint's own analyzer.
+
+Sampling is coverage-stratified, not proportional: equal allocation per genre,
+so `electronic` (15,867 candidates) takes the same four slots as `hiphop`
+(2,641). Proportional sampling would have rebuilt the very skew the weighting
+policy exists to counter. Seed, strata and selected ids are stored so the
+selection is reproducible.
+
+Audio is downloaded, measured, and deleted. Only numbers are kept.
+
+## Portability
+
+`better-sqlite3` was already gone in v0; Pass 2A removes the remaining
+machine-specific assumptions. ffmpeg is now the standard transcoder with
+`afconvert` demoted to an optional macOS fallback. Every path and provider
+setting resolves from the environment, and providers read configuration at call
+time rather than capturing it at import — which also made them testable.
+
+Health endpoints distinguish *process alive* from *able to work* and return 503
+when a critical dependency is missing. The baseline is explicitly not critical:
+a corrupt baseline is treated exactly like a missing one, and the client runs a
+probe query on open because SQLite opens lazily and would otherwise report a
+text file as a healthy database.
+
+## What real data changed
+
+Three defects surfaced only under the full corpus, and none would have appeared
+in a unit test written against assumptions:
+
+- **FMA Echonest features silently vanished.** `echonest.csv` has four header
+  rows and the field name sits in level 2; the column-name builder used two
+  levels, so every lookup missed. 13,129 tempo values disappeared with no
+  error, leaving the global distribution single-source. Distributions went from
+  33 to 435 once fixed.
+- **The AcousticBrainz sample was ordered, not random.** With a sample fraction
+  of 1.0 the "first N eligible rows" were taken, and the dump is in submission
+  order — an early-adopter bias baked straight into the baseline. Now
+  hash-spread over the MBID.
+- **Cap-then-renormalise inverted the skew**, as described above.
+
+A fourth was found by a test: a corrupt baseline file reported as available,
+because SQLite does not validate the header until a statement runs.

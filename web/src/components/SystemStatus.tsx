@@ -12,6 +12,15 @@ import { useEffect, useState } from "react";
 
 interface Health {
   audioService: { reachable: boolean; analyzer_version?: string; transcoder?: string | null; hint?: string };
+  appDatabase?: { reachable: boolean; detail?: string };
+  baseline?: {
+    reachable: boolean;
+    baselineVersion?: string | null;
+    observedTracks?: number;
+    datasets?: { id: string; evidenceClass: string; records: number }[];
+    weightingPolicy?: { maxSourceShare: number; minSupportN: number } | null;
+    detail?: string;
+  };
   interpretation: {
     active: { id: string; label: string } | null;
     providers: { id: string; label: string; available: boolean; reason?: string }[];
@@ -43,6 +52,9 @@ export function SystemStatus() {
 
   const audioOk = health.audioService.reachable;
   const heuristic = health.interpretation.active?.id === "heuristic";
+  const baselineOk = health.baseline?.reachable ?? false;
+  // The baseline is an enhancement, not a dependency: its absence is worth
+  // surfacing but must never read as a broken installation.
   const tone = !audioOk ? "bad" : heuristic ? "warn" : "good";
   const dot = { good: "bg-good", warn: "bg-warn", bad: "bg-bad" }[tone];
 
@@ -54,6 +66,9 @@ export function SystemStatus() {
       >
         <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
         {!audioOk ? "Analyzer offline" : heuristic ? "No AI provider" : "Ready"}
+        {audioOk && !baselineOk && (
+          <span className="text-ink-4" title="World baseline not installed">· no baseline</span>
+        )}
       </button>
 
       {open && (
@@ -73,6 +88,52 @@ export function SystemStatus() {
                 </code>
               )}
             </div>
+          )}
+
+          <div className="eyebrow mb-2 mt-4">World baseline</div>
+          {baselineOk ? (
+            <div className="text-[12px] text-ink-2">
+              <p>
+                {health.baseline?.baselineVersion} —{" "}
+                <span className="tnum">
+                  {(health.baseline?.observedTracks ?? 0).toLocaleString()}
+                </span>{" "}
+                observed tracks
+              </p>
+              <ul className="mt-1.5 space-y-0.5">
+                {health.baseline?.datasets?.map((d) => (
+                  <li key={d.id} className="flex items-baseline gap-2 text-[11px]">
+                    <span
+                      className={
+                        d.evidenceClass === "synthetic" ? "text-warn" : "text-ink-3"
+                      }
+                    >
+                      {d.id}
+                    </span>
+                    <span className="tnum text-ink-4">{d.records.toLocaleString()}</span>
+                    {d.evidenceClass === "synthetic" && (
+                      <span
+                        className="text-[9.5px] uppercase tracking-wide text-warn"
+                        title="Excluded from factual comparative claims"
+                      >
+                        synthetic
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {health.baseline?.weightingPolicy && (
+                <p className="mt-1.5 text-[10.5px] leading-relaxed text-ink-4">
+                  Source-capped at {Math.round(health.baseline.weightingPolicy.maxSourceShare * 100)}%
+                  ; comparative claims need {health.baseline.weightingPolicy.minSupportN}+ observations.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[11.5px] leading-relaxed text-ink-4">
+              Not installed. Everything works; Soundprint just cannot say whether a
+              characteristic is unusual.
+            </p>
           )}
 
           <div className="eyebrow mb-2 mt-4">Interpretation</div>

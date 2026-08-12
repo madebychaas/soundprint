@@ -1,0 +1,61 @@
+# Soundprint — portable two-service deployment.
+#
+#   docker compose up --build
+#   open http://localhost:3000
+#
+# Everything mutable lives in the ./data bind mount: the user database, uploaded
+# audio, and the world baseline. Neither image contains state, so the baseline
+# can be rebuilt or swapped without touching the containers, and user data
+# survives `docker compose down` entirely.
+#
+# NOTE: this configuration is written and statically validated, but has not been
+# run — Docker is not installed on the development machine. See
+# docs/PORTABILITY.md for what that means and how to verify it on first use.
+
+services:
+  audio-service:
+    build:
+      context: ./audio-service
+    image: soundprint/audio-service:2.0.0
+    environment:
+      AUDIO_SERVICE_HOST: 0.0.0.0
+      AUDIO_SERVICE_PORT: "8000"
+      SOUNDPRINT_MAX_UPLOAD_MB: "${SOUNDPRINT_MAX_UPLOAD_MB:-100}"
+      SOUNDPRINT_MAX_DURATION_SECONDS: "${SOUNDPRINT_MAX_DURATION_SECONDS:-1800}"
+      SOUNDPRINT_LOG_LEVEL: "${SOUNDPRINT_LOG_LEVEL:-info}"
+    # Not published to the host by default: the analyzer accepts uploads and
+    # has no authentication, so only the web service should reach it.
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+    image: soundprint/web:2.0.0
+    depends_on:
+      audio-service:
+        condition: service_healthy
+    environment:
+      AUDIO_SERVICE_URL: http://audio-service:8000
+      SOUNDPRINT_DATA_DIR: /data
+      SOUNDPRINT_BASELINE_DB: /data/baseline/world.db
+      SOUNDPRINT_BASE_URL: "${SOUNDPRINT_BASE_URL:-http://localhost:3000}"
+      SOUNDPRINT_ENV: production
+      # Interpretation provider. With none of these set the app falls back to
+      # deterministic rules, which is fully functional and clearly labelled.
+      SOUNDPRINT_LLM_PROVIDER: "${SOUNDPRINT_LLM_PROVIDER:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      ANTHROPIC_MODEL: "${ANTHROPIC_MODEL:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
+    ports:
+      - "${SOUNDPRINT_PORT:-3000}:3000"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+# The `claude-cli` interpretation provider is intentionally unavailable in
+# containers: it depends on an authenticated CLI in the developer's home
+# directory. Containerised deployments use an API key or the heuristic
+# provider.

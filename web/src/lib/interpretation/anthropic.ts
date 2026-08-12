@@ -17,15 +17,27 @@ import {
   type ProviderAvailability,
 } from "./provider";
 
-const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 const API_URL = "https://api.anthropic.com/v1/messages";
+
+/** Read at call time so configuration changes need no restart. */
+function model(): string {
+  return process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-5";
+}
 
 export class AnthropicProvider implements InterpretationProvider {
   readonly id = "anthropic";
   readonly label = "Anthropic API";
   readonly requiresNetwork = true;
 
-  constructor(private readonly apiKey = process.env.ANTHROPIC_API_KEY) {}
+  private readonly apiKeyOverride: string | undefined;
+
+  constructor(apiKey?: string) {
+    this.apiKeyOverride = apiKey;
+  }
+
+  private get apiKey(): string | undefined {
+    return this.apiKeyOverride ?? process.env.ANTHROPIC_API_KEY;
+  }
 
   async availability(): Promise<ProviderAvailability> {
     return {
@@ -43,7 +55,7 @@ export class AnthropicProvider implements InterpretationProvider {
     }
 
     const body = {
-      model: DEFAULT_MODEL,
+      model: model(),
       max_tokens: 8000,
       system: `${SYSTEM_PROMPT}\n\n## Schema\n\n${DNA_JSON_SHAPE}`,
       messages: [{ role: "user", content: buildUserMessage(request) }],
@@ -95,7 +107,7 @@ export class AnthropicProvider implements InterpretationProvider {
     return {
       dna,
       provider: this.id,
-      model: json.model ?? DEFAULT_MODEL,
+      model: json.model ?? model(),
       heuristic: false,
       issues,
       raw: text,

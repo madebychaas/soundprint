@@ -13,6 +13,11 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { AudioServiceError, analyzeFile } from "./analysis/client";
 import type { ObjectiveAnalysis } from "./analysis/types";
+import {
+  comparativeObservations,
+  semanticLabelsFor,
+  withComparativeContext,
+} from "./baseline/observations";
 import { db, resolveAudioPath, schema } from "./db";
 import { DNA_SCHEMA_VERSION, type DnaProvenance, type SoundDna } from "./dna/schema";
 import { interpret } from "./interpretation";
@@ -145,8 +150,18 @@ export async function runPipeline(referenceId: string, options: PipelineOptions 
         .all()
         .map((n) => n.body);
 
+      // Comparative context is computed here and layered on top of the
+      // measurements for interpretation only. The stored ObjectiveAnalysis
+      // stays exactly what the analyzer produced — context is derived, and
+      // writing it back would blur the measurement/interpretation boundary.
+      // Degrades silently to no extra observations when the baseline is absent.
+      const comparative = comparativeObservations(analysis, {
+        semanticLabels: semanticLabelsFor(analysis),
+        userValuesByFeature: userFeatureValues(referenceId, reference.projectId),
+      });
+
       const result = await interpret({
-        analysis,
+        analysis: withComparativeContext(analysis, comparative.observations),
         metadata: {
           title: reference.title,
           artist: reference.artist,
@@ -207,6 +222,59 @@ export async function runPipeline(referenceId: string, options: PipelineOptions 
   } finally {
     inFlight.delete(referenceId);
   }
+}
+
+/**
+ * The user's own measured values for each comparable feature.
+ *
+ * This is the "user context" of the distinctiveness engine, and it is read from
+ * the *application* database — never from the world baseline. World knowledge
+ * and personal evidence stay in separate stores precisely so this function
+ * cannot accidentally mix them.
+ */
+function userFeatureValues(
+  excludeReferenceId: string,
+  projectId: string,
+): Record<string, number[]> {
+  const out: Record<string, number[]> = {};
+  try {
+    const rows = db
+      .select({ id: schema.references.id })
+      .from(schema.references)
+      .where(eq(schema.references.projectId, projectId))
+      .all();
+
+    for (const row of rows) {
+      if (row.id === excludeReferenceId) continue;
+      const analysisRow = db
+        .select()
+        .from(schema.analyses)
+        .where(eq(schema.analyses.referenceId, row.id))
+        .get();
+      if (!analysisRow) continue;
+      const a = analysisRow.payload as ObjectiveAnalysis;
+      for (const [feature, value] of Object.entries({
+        "tempo.bpm": a.tempo.bpm,
+        "rhythm.onset_density_per_beat": a.rhythm.onset_density_per_beat,
+        "rhythm.percussive_energy_ratio": a.rhythm.percussive_energy_ratio,
+        "bass.low_end_ratio": a.bass.low_end_ratio,
+        "bass.sub_energy_ratio": a.bass.sub_energy_ratio,
+        "spectral.brightness_index": a.spectral.brightness_index,
+        "spectral.centroid_hz_mean": a.spectral.centroid_hz_mean,
+        "dynamics.crest_factor_db": a.dynamics.crest_factor_db,
+        "dynamics.loudness_range_db": a.dynamics.loudness_range_db,
+        "stereo.width_index": a.stereo.available ? a.stereo.width_index : null,
+        "tonal.harmonic_change_rate": a.tonal.harmonic_change_rate,
+      })) {
+        if (typeof value === "number" && Number.isFinite(value)) {
+          (out[feature] ??= []).push(value);
+        }
+      }
+    }
+  } catch {
+    // Personal context is an enhancement; never fail the pipeline over it.
+  }
+  return out;
 }
 
 /** Fire-and-forget launcher. Errors are recorded on the row, never thrown here. */

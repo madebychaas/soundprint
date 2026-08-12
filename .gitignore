@@ -1,4 +1,6 @@
 # Reference audio may be private or unreleased — never commit it.
+# This also covers the world baseline (~610 MB) and the raw dataset archives
+# (~2.4 GB): both are build artefacts, rebuildable from documented sources.
 /data/
 !/data/.gitkeep
 

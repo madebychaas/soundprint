@@ -18,23 +18,44 @@ import {
   type ProviderAvailability,
 } from "./provider";
 
-const BASE_URL = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
-const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
+/**
+ * Read at call time, not captured at import.
+ *
+ * A module-level const freezes the value at first import, so the process must
+ * restart for a config change to take effect and the setting cannot be
+ * exercised in a test. Both matter for a service meant to be portable across
+ * machines and containers.
+ */
+function baseUrl(): string {
+  return process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1";
+}
+function model(): string {
+  return process.env.OPENAI_MODEL?.trim() || "gpt-4o";
+}
 
 export class OpenAIProvider implements InterpretationProvider {
   readonly id = "openai";
   readonly label = "OpenAI-compatible API";
   readonly requiresNetwork = true;
 
-  constructor(private readonly apiKey = process.env.OPENAI_API_KEY) {}
+  private readonly apiKeyOverride: string | undefined;
+
+  constructor(apiKey?: string) {
+    this.apiKeyOverride = apiKey;
+  }
+
+  private get apiKey(): string | undefined {
+    return this.apiKeyOverride ?? process.env.OPENAI_API_KEY;
+  }
 
   async availability(): Promise<ProviderAvailability> {
     // A custom base URL usually means a local server that needs no key.
-    const isLocal = !BASE_URL.includes("api.openai.com");
+    const url = baseUrl();
+    const isLocal = !url.includes("api.openai.com");
     const available = Boolean(this.apiKey) || isLocal;
     return {
       id: this.id,
-      label: isLocal ? `${this.label} (${BASE_URL})` : this.label,
+      label: isLocal ? `${this.label} (${url})` : this.label,
       available,
       reason: available ? undefined : "OPENAI_API_KEY is not set.",
       requiresNetwork: true,
@@ -47,11 +68,11 @@ export class OpenAIProvider implements InterpretationProvider {
 
     let res: Response;
     try {
-      res = await fetch(`${BASE_URL}/chat/completions`, {
+      res = await fetch(`${baseUrl()}/chat/completions`, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          model: MODEL,
+          model: model(),
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: `${SYSTEM_PROMPT}\n\n## Schema\n\n${DNA_JSON_SHAPE}` },
@@ -62,7 +83,7 @@ export class OpenAIProvider implements InterpretationProvider {
       });
     } catch (err) {
       throw new InterpretationError(
-        `Could not reach ${BASE_URL}: ${err instanceof Error ? err.message : String(err)}`,
+        `Could not reach ${baseUrl()}: ${err instanceof Error ? err.message : String(err)}`,
         this.id,
         true,
       );
@@ -90,7 +111,7 @@ export class OpenAIProvider implements InterpretationProvider {
     return {
       dna,
       provider: this.id,
-      model: json.model ?? MODEL,
+      model: json.model ?? model(),
       heuristic: false,
       issues,
       raw: text,

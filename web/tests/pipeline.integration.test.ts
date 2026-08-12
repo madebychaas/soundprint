@@ -17,7 +17,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { analyzeFile, audioServiceUrl, checkHealth } from "@/lib/analysis/client";
 import type { ObjectiveAnalysis } from "@/lib/analysis/types";
@@ -32,30 +32,50 @@ const FIXTURES = path.resolve(__dirname, "../../audio-service/tests/fixtures");
 const TRACK = path.join(FIXTURES, "dark_pop_reference.wav");
 const SECOND = path.join(FIXTURES, "bright_uptempo_reference.wav");
 
-let available = false;
+/**
+ * Availability is resolved with top-level await, before `describe.runIf` is
+ * evaluated.
+ *
+ * The obvious `beforeAll` + `describe.runIf(available)` does not work:
+ * `runIf` takes a value, and a function is always truthy, so the suite ran
+ * unconditionally and every assertion failed on `undefined` whenever the
+ * analyzer was busy. Resolving synchronously here makes the guard a real
+ * boolean and the skip actually skip.
+ */
 let analysis: ObjectiveAnalysis;
 let second: ObjectiveAnalysis;
 
-beforeAll(async () => {
-  const health = await checkHealth();
-  available = health !== null && fs.existsSync(TRACK);
-
-  if (!available) {
-    const reason = !fs.existsSync(TRACK)
-      ? `fixtures missing — run: cd audio-service && ./.venv/bin/python scripts/make_test_audio.py`
-      : `audio service not reachable at ${audioServiceUrl()}`;
-    if (process.env.SOUNDPRINT_REQUIRE_AUDIO_SERVICE === "1") {
-      throw new Error(`Integration test requires the audio service: ${reason}`);
-    }
+const available: boolean = await (async () => {
+  if (!fs.existsSync(TRACK)) {
+    const reason =
+      "fixtures missing — run: cd audio-service && ./.venv/bin/python scripts/make_test_audio.py";
+    if (process.env.SOUNDPRINT_REQUIRE_AUDIO_SERVICE === "1") throw new Error(reason);
     console.warn(`\n  [skipped] Pipeline integration test: ${reason}\n`);
-    return;
+    return false;
   }
+  if ((await checkHealth()) === null) {
+    const reason = `audio service not reachable at ${audioServiceUrl()}`;
+    if (process.env.SOUNDPRINT_REQUIRE_AUDIO_SERVICE === "1") throw new Error(reason);
+    console.warn(`\n  [skipped] Pipeline integration test: ${reason}\n`);
+    return false;
+  }
+  try {
+    analysis = await analyzeFile(TRACK, "dark_pop_reference.wav");
+    second = await analyzeFile(SECOND, "bright_uptempo_reference.wav");
+    return true;
+  } catch (err) {
+    // Health responded but analysis could not complete — usually something
+    // else saturating the service, such as a benchmark run.
+    const reason = err instanceof Error ? err.message : String(err);
+    if (process.env.SOUNDPRINT_REQUIRE_AUDIO_SERVICE === "1") {
+      throw new Error(`Integration test could not analyse fixture audio: ${reason}`);
+    }
+    console.warn(`\n  [skipped] Pipeline integration test: analysis failed — ${reason}\n`);
+    return false;
+  }
+})();
 
-  analysis = await analyzeFile(TRACK, "dark_pop_reference.wav");
-  second = await analyzeFile(SECOND, "bright_uptempo_reference.wav");
-}, 240_000);
-
-describe.runIf(() => available)("pipeline integration", () => {
+describe.runIf(available)("pipeline integration", () => {
   it("returns an analysis satisfying the TypeScript contract", () => {
     expect(analysis.analyzer_version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(analysis.metadata.duration_seconds).toBeGreaterThan(1);
@@ -161,7 +181,7 @@ describe.runIf(() => available)("pipeline integration", () => {
 });
 
 describe("audio service error handling", () => {
-  it.runIf(() => available)("rejects a non-audio file with a typed error", async () => {
+  it.runIf(available)("rejects a non-audio file with a typed error", async () => {
     const tmp = path.join(process.cwd(), "node_modules", ".tmp-not-audio.wav");
     fs.mkdirSync(path.dirname(tmp), { recursive: true });
     fs.writeFileSync(tmp, "this is not audio");

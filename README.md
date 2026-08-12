@@ -24,7 +24,7 @@ ingredients. The product is the interpretation:
 
 ## How it works
 
-Two services and one idea.
+Three pieces and one idea.
 
 **Measurement is separate from interpretation, and the boundary is enforced by
 the data model.** The Python service measures and never interprets — nothing it
@@ -50,17 +50,28 @@ cited."* That is what makes the output trustworthy enough to build a brief on.
 ┌─────────────┐   audio    ┌──────────────────┐  measurements   ┌──────────────┐
 │   Browser   │──────────▶ │   web (Next.js)  │ ──────────────▶ │ audio-service│
 │             │            │  SQLite, engines │ ◀────────────── │ librosa/numpy│
-└─────────────┘            └────────┬─────────┘   + observations└──────────────┘
-                                    │
-                        derived analysis only
-                        (never audio)
-                                    ▼
-                        ┌────────────────────────┐
-                        │ InterpretationProvider │
-                        │ anthropic · claude-cli │
-                        │ openai · heuristic     │
-                        └────────────────────────┘
+└─────────────┘            └───┬──────────┬───┘   + observations└──────────────┘
+                               │          │
+              derived analysis │          │ read-only
+                  (never audio)│          ▼
+                               │   ┌──────────────────┐
+                               │   │  world baseline  │  309k tracks
+                               │   │    world.db      │  7.56M measurements
+                               │   └──────────────────┘  separate file
+                               ▼
+                   ┌────────────────────────┐
+                   │ InterpretationProvider │
+                   │ anthropic · claude-cli │
+                   │ openai · heuristic     │
+                   └────────────────────────┘
 ```
+
+The **world baseline** is what lets Soundprint say whether something is
+*distinctive* rather than merely present. It is a separate, replaceable database
+built from public music datasets, and it carries no preference weight — world
+knowledge and personal taste are kept apart by schema constraint, not
+convention. Soundprint runs fine without it and simply says less. See
+[docs/WORLD_BASELINE.md](docs/WORLD_BASELINE.md).
 
 ---
 
@@ -68,10 +79,10 @@ cited."* That is what makes the output trustworthy enough to build a brief on.
 
 | Requirement | Notes |
 |---|---|
-| **Node ≥ 22** | Uses the built-in `node:sqlite`. No native modules to compile. |
+| **Node ≥ 22.5** | Uses the built-in `node:sqlite`. No native modules to compile. |
 | **Python 3.10–3.12** | **Not 3.13+** — numba (via librosa) does not support it yet. |
 | **uv** *(recommended)* | `brew install uv`. Or use `python3.12 -m venv` directly. |
-| **ffmpeg** *(optional)* | Only needed for `.m4a`/`.aac`. macOS falls back to the built-in `afconvert`. |
+| **ffmpeg** *(recommended)* | The standard transcoder; needed for `.m4a`/`.aac`. macOS has an `afconvert` fallback, but nothing in production depends on it. |
 
 No Docker, no API key, and no network access are required to run Soundprint.
 
@@ -227,10 +238,16 @@ cd web && npm test
 cd audio-service && ./.venv/bin/python -m pytest
 ```
 
-98 TypeScript tests (schema validation, comparison, prompt rendering, taste
-aggregation, the SQLite adapter, and an end-to-end pipeline integration test)
-and 38 Python tests (feature extraction against fixtures with known ground
-truth, plus graceful degradation).
+```bash
+cd baseline && python3 -m pytest -q
+```
+
+**132 TypeScript tests** (schema validation, comparison, prompt rendering, taste
+aggregation, the SQLite adapter, world-baseline integration, portability, and an
+end-to-end pipeline integration test), **38 Python analyzer tests** (feature
+extraction against fixtures with known ground truth, plus graceful degradation),
+and **42 Python baseline tests** (anti-skew weighting, claim gating, and the
+personalization-boundary proofs).
 
 The integration test analyses real audio through the running service. It skips
 itself with a clear message if the service isn't running; set

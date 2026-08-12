@@ -51,10 +51,20 @@ export interface AudioServiceHealth {
   max_upload_mb: number;
 }
 
+/**
+ * Health probe timeout.
+ *
+ * Generous on purpose. The analyzer is single-process and CPU-bound, so while
+ * it is measuring a track the event loop can take seconds to answer. A tight
+ * timeout made the status pill flip to "Analyzer offline" during a perfectly
+ * healthy analysis, which is worse than a slow answer.
+ */
+const HEALTH_TIMEOUT_MS = Number(process.env.AUDIO_HEALTH_TIMEOUT_MS ?? 15_000);
+
 export async function checkHealth(): Promise<AudioServiceHealth | null> {
   try {
     const res = await fetch(`${audioServiceUrl()}/health`, {
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
       cache: "no-store",
     });
     if (!res.ok) return null;
