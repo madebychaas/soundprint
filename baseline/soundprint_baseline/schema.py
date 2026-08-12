@@ -189,8 +189,8 @@ CREATE INDEX IF NOT EXISTS pm_world ON population_member(world_id);
 -- ------------------------------------------------------- weighting policy
 -- Raw row counts must not define "normal".
 --
--- AcousticBrainz contributes ~30M rows and an optional local seed contributes a few hundred at most. If
--- distributions were pooled by row count, "typical music" would simply mean
+-- AcousticBrainz contributes ~30M rows and an optional local seed contributes
+-- a few hundred at most. If distributions were pooled by row count, "typical music" would simply mean
 -- "typical AcousticBrainz", and every comparative claim in the product would
 -- inherit that dataset's collection bias. The policy caps how much any single
 -- source can contribute to a balanced population, and is stored with the

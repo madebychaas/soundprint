@@ -343,7 +343,7 @@ function renderUdio(ctx: RenderContext): RenderedPrompt {
   const m = ctx.modifiers ?? DEFAULT_MODIFIERS;
 
   // Udio's prompt box accepts descriptive phrases rather than pure tags, so
-  // this sits between the Suno tag list and the full generic brief.
+  // this stays denser than the full generic brief but reads as prose, not tags.
   const segments: string[] = [];
 
   const opening: string[] = [];

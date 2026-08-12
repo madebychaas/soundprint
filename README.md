@@ -1,8 +1,7 @@
 # Soundprint
 
-Turn a reference track into a reusable **Sound DNA** profile — a structured
-description of what makes it distinctive — so you can create something new with
-similar characteristics without copying the recording.
+Explainable music intelligence that turns audio into measurable Sound DNA,
+comparative context, and reusable creative direction.
 
 Soundprint is not a song identifier and not an audio-feature dashboard. It
 exists to answer one question:
@@ -22,7 +21,39 @@ ingredients. The product is the interpretation:
 
 ---
 
-## How it works
+## 1. Product
+
+Drop a reference track in. Soundprint measures it, checks what's actually
+distinctive about it against a 309k-track world baseline, and turns the
+result into a **Sound DNA** profile — a structured, evidence-cited
+description of what makes the track work, reusable as creative direction for
+something new rather than a copy.
+
+The interface is an object-based, spatial field rather than a conventional
+dashboard: a central object represents the track, discoveries orbit it as
+they're found, and a completed Soundprint discloses progressively — a
+handful of the most important findings by default, with the full
+constellation, raw measurements, and exact confidence one click away rather
+than all on screen at once.
+
+## 2. Why I built it
+
+Every audio-analysis tool I'd used could tell me *what* a track measured as.
+None of them could tell me *why* it felt the way it did, or which of those
+measurements were actually unusual rather than just present. "118 BPM, minor
+key, -8 LUFS" is true and useless — it doesn't tell a musician anything they
+couldn't read off a meter themselves.
+
+The interesting question is comparative and mechanistic: is this genuinely
+slow, or does it just feel that way because the backbeat lands once a bar
+instead of twice? Is 61% low-end energy remarkable, or completely normal for
+the genre? Answering that requires two things most tools skip — a real
+population to compare against, and a hard rule that every claim has to point
+at the measurement behind it. Soundprint is built around both, and around
+being honest, in the interface itself, about the difference between what was
+measured, what was inferred, and what simply isn't knowable from audio alone.
+
+## 3. How it works
 
 Three pieces and one idea.
 
@@ -44,7 +75,7 @@ observation  id: structure.largest_lift
 The interpretation layer must **cite those ids** when it makes a claim. So every
 interpreted statement in the UI carries the measurements behind it, and a claim
 that cites nothing is labelled *"Interpretation only — no specific measurement
-cited."* That is what makes the output trustworthy enough to build a brief on.
+cited."*
 
 ```
 ┌─────────────┐   audio    ┌──────────────────┐  measurements   ┌──────────────┐
@@ -66,16 +97,138 @@ cited."* That is what makes the output trustworthy enough to build a brief on.
                    └────────────────────────┘
 ```
 
-The **world baseline** is what lets Soundprint say whether something is
-*distinctive* rather than merely present. It is a separate, replaceable database
-built from public music datasets, and it carries no preference weight — world
-knowledge and personal taste are kept apart by schema constraint, not
-convention. Soundprint runs fine without it and simply says less. See
-[docs/WORLD_BASELINE.md](docs/WORLD_BASELINE.md).
+## 4. Trust / claim model
 
----
+Every user-facing claim traces back to one of six epistemic categories —
+**measured**, **comparative**, **interpreted**, **user-provided**,
+**uncertain**, or **unavailable** — and the interface treats them
+differently rather than flattening everything into the same confident voice:
 
-## Prerequisites
+- Measured facts (tempo, key, section boundaries) render small, precise and
+  stable.
+- Comparative findings always name the population a percentile is measured
+  against — never a bare "48th percentile" with the comparison left
+  implicit.
+- Interpreted claims are only as large or prominent as their evidence
+  justifies, and a claim with no cited observation says so explicitly rather
+  than reading identically to one that's backed by three measurements.
+- Confidence is never shown as a bare decimal in the primary view — "0.62"
+  reads as a probability it isn't; every confidence score in this codebase is
+  an uncalibrated 0–1 heuristic, not a statistical likelihood, and the UI
+  says so in plain language (*high / moderate / low confidence*), with the
+  exact number available on request.
+
+This isn't a design principle stated in prose and hoped for — it's been
+audited. [docs/CLAIM_AUDIT.md](docs/CLAIM_AUDIT.md) traces every major claim
+type (BPM, key ambiguity, percentiles, structural boundaries, confidence
+scores, and more) back to its source and documents the two presentation
+overclaims that audit actually found and fixed.
+
+**Privacy is part of the same trust boundary.** Reference audio may be
+unreleased, and the architecture assumes that:
+
+- Audio files never leave your machine — stored under `data/audio/`, sent
+  only to the analysis service on `127.0.0.1`.
+- The analysis service makes no outbound network calls at all.
+- When an AI provider is configured, only derived analysis is transmitted —
+  numbers, section boundaries, observation sentences. No audio, no
+  embeddings, no fingerprints. The payload is built by an explicit whitelist
+  in [`web/src/lib/interpretation/prompt.ts`](web/src/lib/interpretation/prompt.ts),
+  and a test asserts raw arrays (beat times, chroma, waveform peaks) never
+  appear in it.
+- `SOUNDPRINT_LLM_PROVIDER=heuristic` sends nothing anywhere. No telemetry,
+  in either service.
+
+## 5. World intelligence
+
+A measurement alone can't say whether it's unusual. Soundprint keeps a
+separate, replaceable **world baseline** — 309k tracks, 7.56M measurements,
+473 gated distributions across 129 comparison populations — built from
+licensed open datasets, so a claim like "restrained low end" can become
+"restrained *for a minor-key track*, 19th percentile against 59,733
+references."
+
+World knowledge and personal taste are kept apart by schema constraint, not
+convention — a `CHECK` constraint makes it physically impossible for a world
+record to carry preference weight — and Soundprint runs fine without the
+baseline at all; it simply says less. Full method, measured anti-skew
+behaviour, and stated gaps in
+[docs/WORLD_INTELLIGENCE.md](docs/WORLD_INTELLIGENCE.md).
+
+## 6. Creative handoffs
+
+Sound DNA is the canonical representation, and it never depends on any
+specific downstream tool existing. From a completed Soundprint, **Create**
+leads to what you're actually trying to make, not a flat list of platforms:
+
+| Category | Destination | What it produces |
+|---|---|---|
+| Data / JSON | Generic, Producer brief, Udio, Plain-text DNA | Vendor-neutral Sound DNA JSON and prose briefs |
+| Video / Visual | LTX | An audio-to-video creative brief — measured pacing/timing, interpreted mood |
+| Workflow | ComfyUI | A structured handoff brief plus a JSON block (not an importable node graph) |
+| AR / Lens | Snap Lens Studio | A creative brief for visual behaviour, motion and timing cues |
+
+None of the platform-specific renderers claim more than they do: none produce
+a validated parameter file, an importable graph, or an exported project —
+each states plainly, in its own output, that it's a creative brief in that
+platform's conventional shape.
+
+**Originality guardrail.** Generated output never names the source track or
+artist — titles and artists are stripped at render time, not left to the
+model, so it holds even for hand-edited DNA. Every profile populates
+`what_not_to_copy` (melody, lyrics, distinctive progression, artist identity),
+and the model is instructed never to reproduce a melody or lyric in
+transcribable form:
+
+> **Not:** "Make a song exactly like *Bad Guy* by Billie Eilish."
+> **Instead:** "Minimal dark-pop production with restrained percussion, intimate
+> close vocal treatment, strong sub-bass emphasis, sparse harmonic movement, and
+> dramatic use of negative space."
+
+## 7. Architecture
+
+```
+soundprint/
+├── audio-service/            Python · FastAPI · librosa — measurement only
+│   ├── soundprint_audio/
+│   │   ├── analyzer.py       AudioAnalyzer interface + orchestration
+│   │   ├── decode.py         format handling, ffmpeg/afconvert fallback
+│   │   ├── observations.py   measurements → citable plain-language statements
+│   │   ├── models.py         the ObjectiveAnalysis contract
+│   │   └── features/         tempo · rhythm · tonal · dynamics · spectral · structure
+│   ├── scripts/              synthetic fixture generator
+│   └── tests/
+├── baseline/                 Python — world baseline build, weighting, distributions
+├── web/                      Next.js · TypeScript · Tailwind · SQLite
+│   ├── src/components/spatial/  the object-based intake/analysis/orbit UI
+│   ├── src/lib/
+│   │   ├── analysis/         client + TS mirror of the contract
+│   │   ├── baseline/         read-only world-baseline client + distinctiveness engine
+│   │   ├── comparison/       ComparisonEngine
+│   │   ├── db/                schema + node:sqlite adapter
+│   │   ├── dna/               Sound DNA zod schema
+│   │   ├── interpretation/   InterpretationProvider + 4 implementations
+│   │   ├── prompts/           PromptRenderer implementations (generic/LTX/ComfyUI/Snap/…)
+│   │   ├── spatial/           discovery-field layout + progressive-disclosure data shaping
+│   │   ├── taste/              TasteProfileEngine (pure) + persistence
+│   │   └── pipeline.ts        upload → analyse → interpret → store
+│   └── tests/
+├── data/                      SQLite + uploaded audio (gitignored)
+└── docs/                      architecture, schema, world intelligence, claim audit, roadmap
+```
+
+Replaceable interfaces: `AudioAnalyzer`, `InterpretationProvider`,
+`PromptRenderer`, `ComparisonEngine`, `TasteProfileEngine`.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the reasoning behind the
+design and [docs/SOUND_DNA_SCHEMA.md](docs/SOUND_DNA_SCHEMA.md) for the
+schema.
+
+## 8. Run locally
+
+No Docker, no API key, and no network access are required to run Soundprint.
+
+### Prerequisites
 
 | Requirement | Notes |
 |---|---|
@@ -84,11 +237,7 @@ convention. Soundprint runs fine without it and simply says less. See
 | **uv** *(recommended)* | `brew install uv`. Or use `python3.12 -m venv` directly. |
 | **ffmpeg** *(recommended)* | The standard transcoder; needed for `.m4a`/`.aac`. macOS has an `afconvert` fallback, but nothing in production depends on it. |
 
-No Docker, no API key, and no network access are required to run Soundprint.
-
----
-
-## Install
+### Install
 
 ```bash
 git clone <your-remote> soundprint && cd soundprint
@@ -106,9 +255,7 @@ cd audio-service && uv venv --python 3.12 .venv && uv pip install --python .venv
 cd web && npm install
 ```
 
----
-
-## Run
+### Run
 
 Two terminals.
 
@@ -122,17 +269,16 @@ cd web && npm run dev
 
 Open **http://localhost:3000**.
 
-The status pill in the header tells you exactly what is and isn't working — the
-analysis service, and which interpretation provider is active. If something is
-missing it shows the command to fix it rather than failing later at upload time.
+The status pill tells you exactly what is and isn't working — the analysis
+service, and which interpretation provider is active. If something is
+missing it shows the command to fix it rather than failing later at upload
+time.
 
 > Don't run `npm run build` while `npm run dev` is running: both write to
 > `.next/` and the dev server will start throwing `MODULE_NOT_FOUND`. Stop dev
 > first, or `rm -rf .next` afterwards.
 
----
-
-## AI configuration
+### AI configuration
 
 Soundprint works with **no API key**. Providers are tried in this order:
 
@@ -147,15 +293,13 @@ Force one with `SOUNDPRINT_LLM_PROVIDER=anthropic|openai|claude-cli|heuristic`.
 
 **The heuristic provider is not AI and never pretends to be.** Profiles it
 generates are badged *"Built-in rules — no language model"* in the UI, tagged
-`heuristic: true` in exports, and say so in their own summary text. It produces
-genuinely useful output — it can describe the mechanisms it has rules for — but
-the interpretive layer is much thinner than a model's.
+`heuristic: true` in exports, and say so in their own summary text.
 
 If an LLM call fails, Soundprint falls back to the heuristic provider and
 records why in the profile's generation notes. A failed model call never costs
 you the audio analysis, which is the expensive part.
 
-### Configuration reference
+#### Configuration reference
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -165,70 +309,24 @@ you the audio analysis, which is the expensive part.
 | `AUDIO_ANALYZE_TIMEOUT_MS` | `300000` | Per-track analysis timeout. |
 | `CLAUDE_CLI_PATH` | `claude` | Path to the CLI binary. |
 
----
+### Using it
 
-## Using it
+1. **Drop a sound** — mp3, wav, flac, m4a, aiff, ogg. It lands you straight
+   in that track's Soundprint.
+2. **Watch it resolve** — measurement takes roughly 20–40 s for a
+   full-length track, live-updating, no page reload.
+3. **Read the completed Soundprint** — a handful of the most important
+   findings by default; tap any of them to inspect its evidence, or step
+   into Explore DNA / Timeline / Evidence / What Soundprint can't tell for
+   the full picture.
+4. **Add notes** — *"the transition at 1:07 is what I want"*. Notes outrank
+   model inference; regenerate to fold them in.
+5. **Rate** references Love / Like / Neutral / Not for me, and **Compare**
+   two or more to see what persists.
+6. **Create** — pick a destination (Data/JSON, Video/Visual, Workflow, AR/Lens)
+   and generate a brief with modifier sliders.
 
-1. **Create a project** — e.g. *"Dark pop references"*.
-2. **Upload audio** — mp3, wav, flac, m4a, aiff, ogg. Drag several at once.
-3. **Wait** — roughly 20–40 s of measurement per full-length track, plus
-   interpretation time. Status updates live.
-4. **Read the analysis** — timeline, technical characteristics with plain-English
-   readings, signature traits, and **Why This Works**.
-5. **Add notes** — *"the transition at 1:07 is what I want"*. Your notes outrank
-   model inference; hit **Regenerate** to fold them in.
-6. **Rate** references Love / Like / Neutral / Not for me.
-7. **Compare** two or more references to see what persists.
-8. **Prompt Studio** — generate for Suno, Udio, a generic model, or a human
-   producer, with modifier sliders.
-9. **Export** — Sound DNA JSON, raw analysis JSON, or copy any prompt.
-
----
-
-## Privacy
-
-Reference audio may be unreleased. The architecture assumes that.
-
-- **Audio files never leave your machine.** They are stored under `data/audio/`
-  and sent only to the analysis service on `127.0.0.1`.
-- **The analysis service makes no outbound network calls at all.**
-- **When an AI provider is configured, only derived analysis is transmitted** —
-  numbers, section boundaries, and observation sentences. No audio, no
-  embeddings, no fingerprints. The exact payload is built by a whitelist in
-  [`web/src/lib/interpretation/prompt.ts`](web/src/lib/interpretation/prompt.ts)
-  (`buildAnalysisPayload`), and a test asserts that raw arrays like beat times,
-  chroma and waveform peaks never appear in it.
-- **`SOUNDPRINT_LLM_PROVIDER=heuristic` sends nothing anywhere.** So does
-  pointing `OPENAI_BASE_URL` at a local model.
-- **No telemetry.** Soundprint collects nothing, and `web/.env` disables
-  Next.js's own telemetry.
-
----
-
-## Originality
-
-Soundprint describes characteristics so you can make something new. It is not a
-cloning tool.
-
-- Generated prompts never name the source track or artist. Titles and artists
-  are stripped at render time — not left to the model — so the guardrail holds
-  even for hand-edited DNA. Phrasings like *"in the style of X"* are rewritten.
-- Every profile populates `what_not_to_copy`: the melody, lyrics, distinctive
-  progression and artist identity belonging to that recording.
-- The model is instructed never to reproduce a melody or lyric in transcribable
-  form.
-
-The UI shows the reference name because you uploaded the file. The generated
-instructions describe characteristics instead:
-
-> **Not:** "Make a song exactly like *Bad Guy* by Billie Eilish."
-> **Instead:** "Minimal dark-pop production with restrained percussion, intimate
-> close vocal treatment, strong sub-bass emphasis, sparse harmonic movement, and
-> dramatic use of negative space."
-
----
-
-## Tests
+### Running tests
 
 ```bash
 cd web && npm test
@@ -242,27 +340,27 @@ cd audio-service && ./.venv/bin/python -m pytest
 cd baseline && python3 -m pytest -q
 ```
 
-**132 TypeScript tests** (schema validation, comparison, prompt rendering, taste
-aggregation, the SQLite adapter, world-baseline integration, portability, and an
-end-to-end pipeline integration test), **38 Python analyzer tests** (feature
-extraction against fixtures with known ground truth, plus graceful degradation),
-and **42 Python baseline tests** (anti-skew weighting, claim gating, and the
-personalization-boundary proofs).
+**214 tests passing** at the time of writing (134 TypeScript — schema
+validation, comparison, prompt rendering, taste aggregation, the SQLite
+adapter, world-baseline integration, portability, and an end-to-end pipeline
+integration test; 38 Python analyzer tests — feature extraction against
+fixtures with known ground truth, plus graceful degradation; 42 Python
+baseline tests — anti-skew weighting, claim gating, and the
+personalization-boundary proofs). Counts drift as the product grows; the
+commands above are the source of truth.
 
-The integration test analyses real audio through the running service. It skips
-itself with a clear message if the service isn't running; set
+The integration test analyses real audio through the running service. It
+skips itself with a clear message if the service isn't running; set
 `SOUNDPRINT_REQUIRE_AUDIO_SERVICE=1` to make that a failure in CI.
 
-Test audio is **synthesised, not sampled** — original signals built to exercise
-specific analyser behaviours, with ground truth stated in code:
+Test audio is **synthesised, not sampled** — original signals built to
+exercise specific analyser behaviours, with ground truth stated in code:
 
 ```bash
 cd audio-service && ./.venv/bin/python scripts/make_test_audio.py
 ```
 
----
-
-## Known limitations
+## 9. Limitations
 
 **Analysis**
 
@@ -285,56 +383,33 @@ cd audio-service && ./.venv/bin/python scripts/make_test_audio.py
 - **Tempo can land an octave out.** Half and double are reported as alternates.
 - **Tracks under ~20 s** are not segmented; under 1 s are rejected.
 
+**World intelligence** — see
+[docs/WORLD_INTELLIGENCE.md](docs/WORLD_INTELLIGENCE.md#limitations) for the
+full, stated list (no commercially released music in the corpus, one source
+dominating numeric features, uneven genre coverage, and more).
+
 **Product**
 
-- Taste Profile needs several rated references before it says much, and it says
-  so. Confidence is shrunk for small samples on purpose.
-- Sound DNA is stored as editable, but the MVP has no editing UI — the schema
-  and persistence keep user edits separate from generated values so it can be
-  added without a migration.
-- Prompt Studio modifiers regenerate deterministically from the stored DNA; they
-  do not re-run the model.
-- Single local user. The schema is keyed for multiple profiles but the UI is not.
+- Taste Profile needs several rated references before it says much, and it
+  says so. Confidence is shrunk for small samples on purpose.
+- Sound DNA is stored as editable, but there is no editing UI yet — the
+  schema and persistence keep user edits separate from generated values so
+  it can be added without a migration.
+- Prompt Studio modifiers regenerate deterministically from the stored DNA;
+  they do not re-run the model.
+- Single local user. The schema is keyed for multiple profiles but the UI is
+  not.
 
 **Generation platforms**
 
-Suno and Udio publish no parameter contract. Soundprint formats prompts in each
-platform's conventional style and says plainly, next to the output, that
-structural instructions may be ignored entirely. It will not claim otherwise.
+None of Udio, LTX, ComfyUI or Snap Lens Studio publish a stable parameter
+contract Soundprint can target with confidence. Every renderer for one of
+them says so directly in its own output, and none claims a validated import
+or export path that doesn't exist.
 
----
+## 10. Roadmap
 
-## Project layout
-
-```
-soundprint/
-├── audio-service/            Python · FastAPI · librosa — measurement only
-│   ├── soundprint_audio/
-│   │   ├── analyzer.py       AudioAnalyzer interface + orchestration
-│   │   ├── decode.py         format handling, ffmpeg/afconvert fallback
-│   │   ├── observations.py   measurements → citable plain-language statements
-│   │   ├── models.py         the ObjectiveAnalysis contract
-│   │   └── features/         tempo · rhythm · tonal · dynamics · spectral · structure
-│   ├── scripts/              synthetic fixture generator
-│   └── tests/
-├── web/                      Next.js · TypeScript · Tailwind · SQLite
-│   ├── src/lib/
-│   │   ├── analysis/         client + TS mirror of the contract
-│   │   ├── comparison/       ComparisonEngine
-│   │   ├── db/               schema + node:sqlite adapter
-│   │   ├── dna/              Sound DNA zod schema
-│   │   ├── interpretation/   InterpretationProvider + 4 implementations
-│   │   ├── prompts/          PromptRenderer implementations
-│   │   ├── taste/            TasteProfileEngine (pure) + persistence
-│   │   └── pipeline.ts       upload → analyse → interpret → store
-│   └── tests/
-├── data/                     SQLite + uploaded audio (gitignored)
-└── docs/                     ARCHITECTURE · SOUND_DNA_SCHEMA · ROADMAP
-```
-
-Replaceable interfaces: `AudioAnalyzer`, `InterpretationProvider`,
-`PromptRenderer`, `ComparisonEngine`, `TasteProfileEngine`.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the reasoning behind the
-design, [docs/SOUND_DNA_SCHEMA.md](docs/SOUND_DNA_SCHEMA.md) for the schema, and
-[docs/ROADMAP.md](docs/ROADMAP.md) for what comes next.
+Ordered by how much each would improve the product's actual job, not by
+implementation difficulty — see [docs/ROADMAP.md](docs/ROADMAP.md) for the
+full list, including what's shipped, what's next, and what's deliberately
+not planned.

@@ -6,8 +6,9 @@ The single most important invariant in Pass 2A:
     PERSON KNOWLEDGE  what this listener repeatedly responds to
 
 must never contaminate each other. "Dark music is common in the baseline" is
-not evidence that a listener likes dark music. "A creator made a batch of tracks tagged
-lo-fi" is not evidence that they like lo-fi either — creation is not preference.
+not evidence that a listener likes dark music. "A creator made a batch of
+tracks tagged lo-fi" is not evidence that they like lo-fi either — creation
+is not preference.
 
 These tests prove the boundary structurally rather than by inspection: the
 constraints are in the schema, so violating them raises rather than silently

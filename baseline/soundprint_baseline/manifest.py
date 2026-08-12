@@ -152,7 +152,7 @@ LOCAL_PUBLIC_SEED = DatasetManifest(
     evidence_class="observed",
     redistribution_notes="Private. Never leaves the local baseline database.",
     notes=(
-        "A weak, platform-specific semantic prior. Not representative of"
+        "A weak, platform-specific semantic prior. Not representative of "
         "music generally, and too small to ground percentile claims on its own."
     ),
 )
@@ -171,7 +171,7 @@ LOCAL_SYNTHETIC_SEED = DatasetManifest(
     evidence_class="synthetic",
     redistribution_notes="Not derived from any third party's audio.",
     notes=(
-        "Bootstrapped profiles. NOT songs and NOT observations. Usable only for"
+        "Bootstrapped profiles. NOT songs and NOT observations. Usable only for "
         "coverage, scaling and neighbourhood behaviour tests. Excluded from every "
         "factual claim by the query layer."
     ),

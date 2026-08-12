@@ -309,32 +309,49 @@ them by a hair.
 
 ## UI
 
-Dark, dense, restrained. Reference points are mastering software and studio
-hardware, not SaaS dashboards.
+Object-based and spatial, not a conventional dashboard. A central liquid-chrome
+object represents the track; discoveries — measurements, comparative findings,
+interpreted readings, and explicit gaps — orbit it as they're actually found,
+each with distinct visual treatment for its epistemic class rather than one
+flattened style. See [docs/CLAIM_AUDIT.md](CLAIM_AUDIT.md) for what those
+classes are and how the interface is required to keep them visually distinct.
 
-Colour carries meaning: one amber accent, plus amber for uncertainty and red for
-failure. Spending colour on decoration would make those signals unreadable —
-that is the reason for the absence of gradients and glows, not taste.
+**Progressive disclosure, not everything at once.** A completed Soundprint
+shows roughly 5–7 curated objects and a two-sentence synthesis by default; the
+full constellation, full interpretation, raw measurements and exact confidence
+scores are one click away (Explore DNA / Timeline / Evidence / What Soundprint
+can't tell), navigated as local state rather than a page change, so inspecting
+a trait's evidence never loses the surrounding context.
+
+Colour still carries meaning, not decoration: a comparative finding's
+population is always named next to its percentile, confidence renders as a
+plain-language band (*high / moderate / low*) rather than a bare decimal that
+reads as a probability it isn't, and an unsupported claim says so explicitly
+rather than looking identical to an evidenced one.
 
 **Never show a number alone.** A spectral centroid of 914 Hz means nothing to
-most musicians; "weighted dark" does, and the number backs it up. Unmeasured
-values render as an em dash, never as zero.
+most musicians; "weighted dark" does, and the number backs it up when you dig
+into Evidence. Unmeasured values render as an em dash, never as zero.
 
 The timeline stacks waveform, energy, low-end share and section blocks against
 one time axis so the user can *see* the interpretation's claim — "the low end
 arrives at 1:08" is far more convincing when the low-end trace visibly steps up
 there.
 
-Polling stops once nothing is in flight.
+Polling stops once nothing is in flight, and the reference page's live-status
+mechanism is a short client-side poll (not a document reload) so a page left
+open during analysis stays visually stable rather than flashing every few
+seconds.
 
 ---
 
-# Pass 2A: comparative context and portability
+# World intelligence and portability
 
-v0 could describe a track. It could not say whether anything about it was
-*distinctive*, because it had nothing to compare against. Pass 2A adds a world
-knowledge layer, and the architectural work is almost entirely about keeping
-that knowledge from contaminating the things it must not touch.
+Early Soundprint could describe a track. It could not say whether anything
+about it was *distinctive*, because it had nothing to compare against. The
+world-intelligence layer changes that, and the architectural work is almost
+entirely about keeping that knowledge from contaminating the things it must
+not touch.
 
 ## The pipeline gains one stage
 
@@ -364,8 +381,9 @@ the database rejects any attempt to raise it. The baseline schema contains no
 ratings, taste or notes table — it physically cannot hold a preference.
 
 **Created vs liked.** `origin_role` distinguishes `created`, `context` and
-`catalog`. Tracks made via the optional local creator-context seed say something about what the user
-makes and nothing reliable about what they like. There is no `liked` role in
+`catalog`. Tracks a user made (via the optional local creator-context seed —
+see docs/DATA_PROVENANCE.md) say something about what they make and nothing
+reliable about what they like. There is no `liked` role in
 the world schema at all; preference lives exclusively in the application
 database.
 
@@ -375,7 +393,7 @@ rather than trusting callers to remember.
 
 ## Row counts must not define "normal"
 
-The hardest design problem in this pass, and the one where the first
+The hardest design problem in this layer, and the one where the first
 implementation was wrong.
 
 AcousticBrainz contributes 7.56M tempo observations; FMA contributes 13,129.
@@ -435,7 +453,7 @@ Audio is downloaded, measured, and deleted. Only numbers are kept.
 
 ## Portability
 
-`better-sqlite3` was already gone in v0; Pass 2A removes the remaining
+`better-sqlite3` was already gone in v0; this layer removes the remaining
 machine-specific assumptions. ffmpeg is now the standard transcoder with
 `afconvert` demoted to an optional macOS fallback. Every path and provider
 setting resolves from the environment, and providers read configuration at call

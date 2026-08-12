@@ -2,8 +2,8 @@
 
 The problem this solves
 -----------------------
-AcousticBrainz supplies tens of millions of rows; an optional local seed supplies at most a
-few hundred. Pooling them by row count would make "normal music" mean "normal
+AcousticBrainz supplies tens of millions of rows; an optional local seed
+supplies at most a few hundred. Pooling them by row count would make "normal music" mean "normal
 AcousticBrainz", and every downstream comparative claim would silently inherit
 that corpus's collection bias — heavily Western, heavily catalogued, heavily
 whatever MusicBrainz contributors happened to submit.

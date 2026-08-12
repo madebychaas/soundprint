@@ -41,7 +41,7 @@ def cmd_build(args) -> int:
     corpus_values: dict[str, dict[str, list[float]]] = {}
     report: dict = {"version": version, "datasets": {}}
 
-    # ---- local creator-context seed ----------------------------------
+    # ---- local creator-context seed ----------------------------------------
     if args.seed:
         seed_zip = Path(args.seed).expanduser()
         work = downloads / "seed"

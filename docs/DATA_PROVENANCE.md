@@ -81,26 +81,31 @@ never stored.
 CC BY-SA 4.0 obligations attach. Derived *statistics* (percentiles over
 thousands of tracks) are not a redistribution of the annotations.
 
-### Local creator-context seed — three separate datasets
+### Local creator-context seed (optional) — three separate datasets
 
-Ingested as three `dataset` rows rather than one flagged dataset, because
-source-capping operates per dataset: the synthetic layer cannot quietly
-influence a distribution even if someone forgets to filter it.
+An optional, private, local-only seed that anyone running Soundprint can
+supply from their own listening/creating history — nothing about the baseline
+depends on it existing, and nothing in this repository ships it. Ingested as
+three `dataset` rows rather than one flagged dataset, because source-capping
+operates per dataset: the synthetic layer cannot quietly influence a
+distribution even if someone forgets to filter it.
 
-| Layer | Records | Evidence class | `origin_role` | Role |
-|---|---:|---|---|---|
+| Layer | Evidence class | `origin_role` | Role |
+|---|---|---|---|
 | `local-creator-context` | observed | `created` | Tracks the user **made**. Semantic context only. |
 | `local-public-context` | observed | `context` | Weak platform-specific prior. |
 | `local-synthetic-context` | **synthetic** | `catalog` | Scaffolding. Not songs. |
 
 Private user data. Not redistributable, and it never leaves the local baseline
 database. Track titles are deliberately **not** copied into the baseline —
-comparative statistics do not need them.
+comparative statistics do not need them, and record counts for this layer are
+likewise not published anywhere, since they would describe a specific private
+corpus rather than Soundprint's own architecture.
 
-**Creation is not preference.** These tracks are the clearest case: the user
-made them, which says something about their output and nothing reliable about
-their taste. `origin_role = 'created'` and `taste_weight = 0` keep that
-distinction queryable forever.
+**Creation is not preference.** The clearest case in the whole schema: tracks a
+user made say something about their output and nothing reliable about their
+taste. `origin_role = 'created'` and `taste_weight = 0` keep that distinction
+queryable forever, structurally, not by convention.
 
 **Synthetic is not observed.** The bootstrap profiles contain no invented
 artist, title, lyric or audio. They exist for coverage, scaling and

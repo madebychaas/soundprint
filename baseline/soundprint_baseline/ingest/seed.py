@@ -1,20 +1,27 @@
 """Local creator-context seed ingestion.
 
-Three layers with genuinely different epistemic status, ingested as three
-separate datasets so the difference survives into every query:
+An optional, private local seed with three layers of genuinely different
+epistemic status, ingested as three separate datasets so the difference
+survives into every query:
 
-  local-creator-context    tracks the user MADE. origin_role='created'.
-                    Creation is not preference — these must never imply liking.
-  local-public-context      tracks of platform context. A weak semantic prior, far
-                    too small to ground a percentile claim on its own.
-  local-synthetic-context bootstrapped profiles. evidence_class='synthetic'.
-                    Not songs. Excluded from every factual claim by the query
-                    layer, retained only for coverage and scaling tests.
+  local-creator-context  Tracks the user MADE. origin_role='created'.
+                          Creation is not preference — these must never imply
+                          liking.
+  local-public-context   Tracks representing platform/public context. A weak
+                          semantic prior, far too small to ground a percentile
+                          claim on its own.
+  local-synthetic-context Bootstrapped profiles. evidence_class='synthetic'.
+                          Not songs. Excluded from every factual claim by the
+                          query layer, retained only for coverage and scaling
+                          tests.
 
 Keeping these as distinct `dataset` rows rather than a flag on one dataset is
 deliberate: the source-capping in weighting.py operates per dataset, so the
 synthetic layer cannot quietly dominate a distribution even if someone forgets
 to filter it.
+
+This seed is optional. The baseline builds and Soundprint runs fully without
+it — see docs/DATA_PROVENANCE.md.
 """
 
 from __future__ import annotations
@@ -46,10 +53,10 @@ def ingest(conn, seed_sqlite: Path) -> dict:
         "       tags_json, features_json, provenance_json FROM baseline_records"
     ).fetchall()
 
-    # An unrecognised layer must fail loudly. Silently skipping one dropped
-    # the overwhelming majority of records during development while the build still reported
-    # success — exactly the kind of quiet data loss that makes a baseline
-    # untrustworthy.
+    # An unrecognised layer must fail loudly. Silently skipping one dropped the
+    # overwhelming majority of records during development while the build
+    # still reported success — exactly the kind of quiet data loss that makes
+    # a baseline untrustworthy.
     unknown = {r["record_type"] for r in rows} - set(LAYER_CONFIG)
     if unknown:
         raise ValueError(

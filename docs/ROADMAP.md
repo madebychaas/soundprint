@@ -6,25 +6,35 @@ implementation difficulty.
 
 ---
 
-## Shipped — Pass 2A (world intelligence + portability)
+## Shipped
 
-World baseline v2 (309k tracks, 7.56M AcousticBrainz measurements, 473
-distributions) · source-balanced weighting with measured anti-skew · claim
-gating · four comparison contexts · feature ontology separating semantic from
-acoustic evidence · 347-track coverage-stratified native benchmark ·
-personalization boundary enforced by schema constraint · ffmpeg standard ·
-pinned toolchain · environment-driven config · dependency-aware health checks ·
-containers (unverified) · migration runbook · 212 tests.
+**Core pipeline.** Projects · multi-file upload (mp3/wav/flac/m4a/aiff/ogg) ·
+objective analysis with versioning · observations with salience · AI
+interpretation across four providers · Sound DNA with evidence citation ·
+Why This Works · energy timeline with section map · comparison across
+references · ratings and taste profile with shrunken confidence · user notes
+weighted above model inference · graceful degradation throughout.
 
-## Shipped (MVP)
+**World intelligence.** World baseline (309k tracks, 7.56M AcousticBrainz
+measurements, 473 distributions) · source-balanced weighting with measured
+anti-skew · claim gating · four comparison contexts · feature ontology
+separating semantic from acoustic evidence · 347-track coverage-stratified
+native benchmark · personalization boundary enforced by schema constraint ·
+ffmpeg standard · pinned toolchain · environment-driven config ·
+dependency-aware health checks · containers (unverified) · migration
+runbook. See [WORLD_INTELLIGENCE.md](WORLD_INTELLIGENCE.md).
 
-Projects · multi-file upload (mp3/wav/flac/m4a/aiff/ogg) · objective analysis
-with versioning · observations with salience · AI interpretation across four
-providers · Sound DNA with evidence citation · Why This Works · energy timeline
-with section map · comparison across references · ratings and taste profile with
-shrunken confidence · Prompt Studio (generic/Suno/Udio/producer/plain-text) with
-modifiers · JSON export · user notes weighted above model inference · graceful
-degradation throughout.
+**Spatial UI + trust model.** Object-based intake/analysis/orbit/resolution
+interface · progressive disclosure (summary → trait → evidence, ~5-7 objects
+by default rather than every measurement at once) · a documented claim audit
+classifying every user-facing statement as measured/comparative/interpreted/
+uncertain, with two presentation overclaims found and fixed. See
+[CLAIM_AUDIT.md](CLAIM_AUDIT.md).
+
+**Creative handoffs.** Prompt Studio organised by destination (Video/Visual,
+Workflow, AR/Lens, Data/JSON) with vendor-neutral Sound DNA JSON, a producer
+brief, and target-aware briefs for LTX, ComfyUI and Snap Lens Studio — none
+claiming a validated import/export path that doesn't exist.
 
 ---
 
@@ -98,9 +108,13 @@ supports it; UI does not.
 **Song identification.** Different product, and it invites exactly the
 copy-the-source behaviour Soundprint is built to avoid.
 
-**Direct generation-platform integration.** Suno and Udio publish no stable API
-or parameter contract. Soundprint would inherit their breakage and imply a
-fidelity it cannot deliver. Copy-paste is honest.
+**Live generation-platform API integration.** Udio publishes no stable API or
+parameter contract, and LTX/ComfyUI/Snap Lens Studio are creative-brief
+destinations, not live integrations, for the same reason: Soundprint would
+inherit their breakage and imply a fidelity it cannot deliver. Copy-paste is
+honest. (A structured, non-live handoff — a formatted brief or JSON block — is
+in scope and shipped; a network call that claims to control the target
+platform is not.)
 
 **Stem export or audio manipulation.** Soundprint analyses and describes; it
 does not process audio for output.

@@ -44,13 +44,18 @@ Built `world-v2.0.0`, schema `2.0.0`.
 | AcousticBrainz | 141,616 stored / **7.56 M measured** | observed | CC0 1.0 |
 | Free Music Archive | 106,574 | observed | Per-track CC; metadata CC-BY 4.0 |
 | MTG-Jamendo | 55,701 | observed | Annotations CC BY-SA 4.0 |
-| Local synthetic context | **synthetic** | Generated scaffolding |
-| Local creator context | observed (`created`) | Private |
-| Local public context | observed (`context`) | Private |
 | Soundprint native | see below | observed | Derived measurements only |
+| Local creator-context seed (optional, private) | not published | mixed — see below | Never leaves the local machine |
 
 **309,388 world tracks · 797,480 semantic labels · 857,546 external features ·
 129 populations · 435 distributions.**
+
+The optional local creator-context seed is ingested as three separate
+`dataset` rows (`created` / `context` / `synthetic` — see
+[DATA_PROVENANCE.md](DATA_PROVENANCE.md)) so source-capping and the
+synthetic/observed split apply to it exactly like any other source; its
+record counts are not published here because they would describe a specific
+private corpus rather than the baseline's architecture.
 
 A note on the AcousticBrainz numbers: 7.56 M eligible recordings were streamed
 to compute distributions exactly, while a hash-selected sample of 141,616 is
@@ -216,8 +221,10 @@ minutes of analysis per 100 full-length tracks, plus download time.
 Measured, stored in `corpus_profile`, and reported rather than assumed away.
 
 **Source share** (of stored tracks): AcousticBrainz 46.5%, FMA 35.0%,
-MTG-Jamendo 18.3%, with the optional local seed a small fraction of a percent. Source Gini
-**0.51**.
+MTG-Jamendo 18.3%, with the optional local creator-context seed (when present)
+contributing a small fraction of a percent — small enough that the weighting
+policy's "no lift below 500 records" floor applies to it directly, at natural
+weight. Source Gini **0.51**.
 
 **Genre** (498 distinct labels, evenness **0.73**): electronic 10.3%,
 experimental 8.5%, rock 8.1%, pop 4.4%, folk 3.1%, instrumental 3.0%,
