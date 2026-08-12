@@ -1,11 +1,27 @@
 "use client";
 
+/**
+ * The Intake object.
+ *
+ * Visual replacement for UploadPanel. Same upload logic, same API contract —
+ * `POST /api/projects/:id/references` with a FormData `files` list — nothing
+ * about how upload works changed, only how it looks and what happens after a
+ * single drop.
+ *
+ * A single-file drop routes straight to that reference's page, so the user
+ * lands in INTAKE → ANALYSIS immediately instead of back on a list. A
+ * multi-file drop stays here (there is no one place to land) and refreshes
+ * the list below, same as before.
+ */
+
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
+import { LiquidObject } from "./LiquidObject";
+
 const ACCEPT = ".mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aiff,.aif,audio/*";
 
-export function UploadPanel({ projectId }: { projectId: string }) {
+export function IntakeField({ projectId }: { projectId: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -33,8 +49,12 @@ export function UploadPanel({ projectId }: { projectId: string }) {
       if (!res.ok) {
         setError(data.error ?? "Upload failed.");
         setRejected(data.rejected ?? []);
+        return;
+      }
+      setRejected(data.rejected ?? []);
+      if (data.created?.length === 1) {
+        router.push(`/references/${data.created[0].id}`);
       } else {
-        setRejected(data.rejected ?? []);
         router.refresh();
       }
     } catch (err) {
@@ -46,9 +66,7 @@ export function UploadPanel({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="rounded border border-line bg-surface p-5">
-      <div className="eyebrow mb-3">Add references</div>
-
+    <div className="sp-field relative">
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -61,14 +79,27 @@ export function UploadPanel({ projectId }: { projectId: string }) {
           void upload(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
-        className={`cursor-pointer rounded border border-dashed px-4 py-10 text-center transition-colors ${
-          dragging ? "border-signal bg-signal-wash" : "border-line hover:border-line-bright"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label="Drop a sound here, or choose a file"
+        className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-[2.5rem] py-12 text-center outline-none transition-[filter] ${
+          dragging ? "brightness-125" : ""
         }`}
       >
-        <p className="text-[13px] text-ink-2">
-          {busy ? "Uploading…" : "Drop audio here, or click to choose"}
+        <div className={dragging ? "scale-105 transition-transform" : "transition-transform"}>
+          <LiquidObject seed={projectId} size={200} knowledge={busy ? 0.6 : 0.15} active={busy || dragging} />
+        </div>
+
+        <p className="mt-6 text-[15px] font-medium tracking-tight text-ink">
+          {busy ? "Listening…" : "Drop a sound here"}
         </p>
-        <p className="mt-1.5 text-[11px] text-ink-4">
+        <p className="mt-1 text-[12px] text-ink-3">
+          {busy ? "Measuring what makes it distinctive" : "or click to choose a file"}
+        </p>
+        <p className="mt-3 text-[10.5px] text-ink-4">
           mp3 · wav · flac · m4a · aiff · ogg — up to 100 MB each
         </p>
       </div>
@@ -82,10 +113,10 @@ export function UploadPanel({ projectId }: { projectId: string }) {
         onChange={(e) => e.target.files && void upload(e.target.files)}
       />
 
-      {error && <p className="mt-3 text-[12px] text-bad">{error}</p>}
+      {error && <p className="mt-3 text-center text-[12px] text-bad">{error}</p>}
 
       {rejected.length > 0 && (
-        <ul className="mt-3 space-y-1.5">
+        <ul className="mx-auto mt-3 max-w-sm space-y-1.5">
           {rejected.map((r) => (
             <li key={r.filename} className="text-[11px] leading-relaxed text-warn">
               <span className="font-medium">{r.filename}</span> — {r.reason}
@@ -94,7 +125,7 @@ export function UploadPanel({ projectId }: { projectId: string }) {
         </ul>
       )}
 
-      <p className="mt-4 text-[11px] leading-relaxed text-ink-4">
+      <p className="mx-auto mt-4 max-w-xs text-center text-[10.5px] leading-relaxed text-ink-4">
         Files are stored on this machine only. Analysis runs locally; if an AI provider is
         configured, only the resulting measurements are sent for interpretation.
       </p>

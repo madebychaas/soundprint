@@ -1,40 +1,51 @@
 @import "tailwindcss";
 
 /**
- * Soundprint visual system.
+ * Soundprint visual system — spatial pass.
  *
- * Reference points are studio hardware and mastering software, not SaaS
- * dashboards: near-black surfaces that let a waveform be the brightest thing
- * on screen, one restrained accent, and type that stays legible at small sizes
- * because this interface is dense by nature.
+ * Pass 2A shipped a studio-hardware palette: near-black surfaces, one amber
+ * accent, sharp rectangles. This pass keeps the same *token* structure — every
+ * component below still just says `bg-surface` / `text-signal` / `border-line`
+ * — but re-tunes the values toward the approved spatial concept: liquid
+ * chrome, hot fuchsia at the core, violet in transit, electric cobalt only at
+ * the far edge. Re-pointing the tokens is what lets NotesPanel, RatingControl,
+ * the taste/compare/prompt pages etc. pick up the new world for free, without
+ * a line of their own changing — this pass is presentation-only and those
+ * pages are deliberately not rebuilt tonight.
  *
- * Deliberately absent: gradients, glows, purple/cyan "AI" palettes, decorative
- * rounding. Colour carries meaning here — amber marks uncertainty, red marks
- * failure — so spending it on decoration would make those signals unreadable.
+ * Colour still carries meaning: good/warn/bad/info are untouched in *role*
+ * (confidence, uncertainty, failure, context) even though their hues shifted
+ * to sit against a violet-black field instead of a grey one.
  */
 
 @theme {
-  --color-void: #070708;
-  --color-surface: #0d0e10;
-  --color-surface-2: #131417;
-  --color-surface-3: #1a1c20;
-  --color-line: #24262b;
-  --color-line-bright: #33363d;
+  --color-void: #08050d;
+  --color-surface: #100b1a;
+  --color-surface-2: #171024;
+  --color-surface-3: #20172f;
+  --color-line: #322a48;
+  --color-line-bright: #4a3d68;
 
-  --color-ink: #ecedef;
-  --color-ink-2: #a8abb2;
-  --color-ink-3: #6e727a;
-  --color-ink-4: #4a4d54;
+  --color-ink: #f3eefc;
+  --color-ink-2: #b9aecc;
+  --color-ink-3: #8a7ea3;
+  --color-ink-4: #5c5375;
 
-  /* Single accent: a warm amber that reads as VU-meter, not neon. */
-  --color-signal: #d9a441;
-  --color-signal-dim: #8a6a2c;
-  --color-signal-wash: rgba(217, 164, 65, 0.09);
+  /* Single accent, re-pointed from amber to the jewel object's core light. */
+  --color-signal: #ef4fb0;
+  --color-signal-dim: #9a3e83;
+  --color-signal-wash: rgba(239, 79, 176, 0.1);
 
-  --color-good: #5fa87e;
-  --color-warn: #c9973f;
-  --color-bad: #c25b52;
-  --color-info: #6b8bab;
+  --color-good: #57d39a;
+  --color-warn: #e0a83f;
+  --color-bad: #ff5c72;
+  --color-info: #6fa4ff;
+
+  /* The jewel material's three stops, for spatial components that need the
+     gradient directly rather than through a semantic token. */
+  --color-fuchsia: #ef4fb0;
+  --color-violet: #8b5cf6;
+  --color-cobalt: #4f7bff;
 
   --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", monospace;
@@ -49,17 +60,32 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* A faint, fixed field glow behind everything — the "living void" the object
+   sits in. Fixed + background-only, so it never re-paints on scroll. */
+body {
+  position: relative;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 60% 40% at 18% -8%, rgba(239, 79, 176, 0.1), transparent 60%),
+    radial-gradient(ellipse 50% 35% at 88% 6%, rgba(79, 123, 255, 0.08), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 50% 105%, rgba(139, 92, 246, 0.07), transparent 60%);
+  pointer-events: none;
+}
+
 * {
   border-color: var(--color-line);
 }
 
-/* Numeric data must align in columns to be scannable. */
 .tnum {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
 }
 
-/* Section eyebrow: the small uppercase label above a data group. */
 .eyebrow {
   font-size: 0.6875rem;
   letter-spacing: 0.11em;
@@ -90,7 +116,7 @@ body {
 
 ::selection {
   background: var(--color-signal);
-  color: #14100a;
+  color: #14060f;
 }
 
 input,
@@ -110,7 +136,6 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
-/* Range inputs are used as mix-console faders; the default look is wrong. */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -140,4 +165,90 @@ input[type="range"]:disabled::-webkit-slider-thumb {
 }
 .animate-working {
   animation: pulse-dim 1.4s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------------
+ * Spatial primitives
+ *
+ * Everything below is additive, used by the object-based intake/analysis
+ * field (IntakeField, LiquidObject, DiscoveryField) and nowhere else. Kept in
+ * globals.css rather than CSS-in-JS because the field is server-rendered and
+ * these are pure CSS effects — no client JS is needed to breathe, drift or
+ * fade a discovery in.
+ * ---------------------------------------------------------------------- */
+
+@keyframes sp-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+@keyframes sp-drift {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes sp-rise {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes sp-in {
+  from { opacity: 0; transform: translateY(5px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sp-web-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sp-shimmer {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.sp-breathe { animation: sp-breathe 6.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.sp-drift { animation: sp-drift 40s linear infinite; transform-box: fill-box; transform-origin: center; }
+.sp-drift-slow { animation: sp-drift 70s linear infinite reverse; transform-box: fill-box; transform-origin: center; }
+.sp-rise { animation: sp-rise 5s ease-in-out infinite; }
+.sp-shimmer { animation: sp-shimmer 2.2s ease-in-out infinite; }
+
+.sp-node {
+  animation: sp-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--sp-delay, 0ms);
+}
+.sp-web {
+  animation: sp-web-in 0.8s ease-out both;
+  animation-delay: calc(var(--sp-delay, 0ms) + 120ms);
+}
+
+.sp-glass {
+  background: rgba(23, 16, 36, 0.62);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(139, 92, 246, 0.16);
+}
+
+.sp-field {
+  container-type: inline-size;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-breathe,
+  .sp-drift,
+  .sp-drift-slow,
+  .sp-rise,
+  .sp-shimmer,
+  .animate-working {
+    animation: none !important;
+  }
+  .sp-node,
+  .sp-web {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Weaker layouts: fewer simultaneous blurred layers. */
+  .sp-glass {
+    backdrop-filter: blur(8px) saturate(120%);
+    -webkit-backdrop-filter: blur(8px) saturate(120%);
+  }
 }
