@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+/**
+ * Soundprint visual system.
+ *
+ * Reference points are studio hardware and mastering software, not SaaS
+ * dashboards: near-black surfaces that let a waveform be the brightest thing
+ * on screen, one restrained accent, and type that stays legible at small sizes
+ * because this interface is dense by nature.
+ *
+ * Deliberately absent: gradients, glows, purple/cyan "AI" palettes, decorative
+ * rounding. Colour carries meaning here — amber marks uncertainty, red marks
+ * failure — so spending it on decoration would make those signals unreadable.
+ */
+
+@theme {
+  --color-void: #070708;
+  --color-surface: #0d0e10;
+  --color-surface-2: #131417;
+  --color-surface-3: #1a1c20;
+  --color-line: #24262b;
+  --color-line-bright: #33363d;
+
+  --color-ink: #ecedef;
+  --color-ink-2: #a8abb2;
+  --color-ink-3: #6e727a;
+  --color-ink-4: #4a4d54;
+
+  /* Single accent: a warm amber that reads as VU-meter, not neon. */
+  --color-signal: #d9a441;
+  --color-signal-dim: #8a6a2c;
+  --color-signal-wash: rgba(217, 164, 65, 0.09);
+
+  --color-good: #5fa87e;
+  --color-warn: #c9973f;
+  --color-bad: #c25b52;
+  --color-info: #6b8bab;
+
+  --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", monospace;
+}
+
+html,
+body {
+  background: var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+/* Numeric data must align in columns to be scannable. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+/* Section eyebrow: the small uppercase label above a data group. */
+.eyebrow {
+  font-size: 0.6875rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+  font-weight: 500;
+}
+
+.hairline {
+  border-top: 1px solid var(--color-line);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-void);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-bright);
+  border-radius: 999px;
+  border: 3px solid var(--color-void);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-4);
+}
+
+::selection {
+  background: var(--color-signal);
+  color: #14100a;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 1px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+/* Range inputs are used as mix-console faders; the default look is wrong. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--color-line-bright);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  width: 6px;
+  margin-top: -6px;
+  border-radius: 1px;
+  background: var(--color-signal);
+}
+input[type="range"]:disabled::-webkit-slider-thumb {
+  background: var(--color-ink-4);
+}
+
+@keyframes pulse-dim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.animate-working {
+  animation: pulse-dim 1.4s ease-in-out infinite;
+}

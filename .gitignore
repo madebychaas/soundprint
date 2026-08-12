@@ -1,0 +1,25 @@
+# Reference audio may be private or unreleased — never commit it.
+/data/
+!/data/.gitkeep
+
+# Node
+node_modules/
+.next/
+*.tsbuildinfo
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Generated test audio (regenerate with scripts/make_test_audio.py)
+audio-service/tests/fixtures/*.wav
+
+# Local env overrides. web/.env is committed: it only disables Next telemetry.
+.env.local
+.env.*.local
+
+.DS_Store
