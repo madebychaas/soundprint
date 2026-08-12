@@ -25,3 +25,8 @@ audio-service/tests/fixtures/*.wav
 .env.*.local
 
 .DS_Store
+
+# Claude Code local session/tooling state — machine-specific, never shared.
+# Previously relied on the operator's global git ignore; explicit here so the
+# same protection applies to any clone or contributor.
+.claude/
