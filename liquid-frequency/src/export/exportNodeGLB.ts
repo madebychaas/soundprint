@@ -9,7 +9,7 @@ import { play } from '../sim/play';
  *  • simple PBR materials (the custom shader effects are not exported)
  * This is a VISUALISATION mesh, not a fabrication-ready CAD file.
  */
-export async function exportNodeGLB(): Promise<void> {
+export async function exportNodeGLB(): Promise<string> {
   const root = node01Root.current;
   if (!root) throw new Error('Node 01 is not mounted');
   play.reset();
@@ -60,9 +60,11 @@ export async function exportNodeGLB(): Promise<void> {
   const url = URL.createObjectURL(new Blob([buffer], { type: 'model/gltf-binary' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'liquid-frequency-node01.glb';
+  const fileName = root.name.startsWith('OrbitalBloom') ? 'orbital-bloom-02-node01-view.glb' : 'liquid-frequency-node01-parametric.glb';
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return fileName;
 }

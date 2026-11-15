@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { DEG, INSTRUMENT_LIFT, NODES } from '../data/dimensions';
-import { EXPLODE_LIFT, PART_BY_ID, PartId } from '../data/parts';
+import type { PartId } from '../data/parts';
+import type { JourneyKey } from '../data/nodeModels';
+import { profile } from '../state/store';
 import type { ExhibitId, View } from '../state/store';
 import { runtime } from '../state/runtime';
 
@@ -25,21 +27,24 @@ const U = new THREE.Vector3(Math.cos(ENTRY_AZIMUTH * DEG), 0, Math.sin(ENTRY_AZI
 const W = new THREE.Vector3(Math.cos((ENTRY_AZIMUTH - 90) * DEG), 0, Math.sin((ENTRY_AZIMUTH - 90) * DEG));
 const rys = (r: number, y: number, s: number) => nodeToWorld(U.x * r + W.x * s, y, U.z * r + W.z * s);
 
-// ── Entry journey keyframes (node-local cylindrical: radius along the corridor, height, lateral) ──
-const KEYS = [
-  { t: 0.0, pos: [92, 64, 18], tgt: [0, 19, 0], fov: 32 },
-  { t: 0.15, pos: [66, 31, 34], tgt: [5, 20.5, 0], fov: 33 }, // swing low and wide across the playing surface
-  { t: 0.29, pos: [45, 25.2, 11], tgt: [27.7, 21.0, 0], fov: 37 }, // macro on the hairline gap around the floating cap
-  { t: 0.37, pos: [42.5, 24.4, 6], tgt: [27.4, 20.4, 0], fov: 38 }, // hold while the section opens
-  { t: 0.53, pos: [45, 17.2, 15], tgt: [14, 14.4, 13], fov: 44 }, // level with the cut: puck, bumper, and the flange captured under the lip
-  { t: 0.67, pos: [31.5, 16.2, 4], tgt: [7, 13.4, 1], fov: 48 }, // through the opened section
-  { t: 0.81, pos: [24.5, 15.3, 1.6], tgt: [0, 12.8, 0], fov: 52 },
-  { t: 1.0, pos: [19.8, 14.5, 3.2], tgt: [-1, 12.4, 0], fov: 54 }, // settled inside; the enclosure closes behind
-];
-const posCurve = new THREE.CatmullRomCurve3(KEYS.map((k) => rys(k.pos[0], k.pos[1], k.pos[2])), false, 'centripetal', 0.5);
-const tgtCurve = new THREE.CatmullRomCurve3(KEYS.map((k) => rys(k.tgt[0], k.tgt[1], k.tgt[2])), false, 'centripetal', 0.5);
+// ── Entry journey: keyframes come from the active Node 01 profile ─────────
+const curves = new Map<string, { pos: THREE.CatmullRomCurve3; tgt: THREE.CatmullRomCurve3; keys: JourneyKey[] }>();
+function journeyCurves() {
+  const pr = profile();
+  let c = curves.get(pr.id);
+  if (!c) {
+    c = {
+      keys: pr.journey,
+      pos: new THREE.CatmullRomCurve3(pr.journey.map((k) => rys(k.pos[0], k.pos[1], k.pos[2])), false, 'centripetal', 0.5),
+      tgt: new THREE.CatmullRomCurve3(pr.journey.map((k) => rys(k.tgt[0], k.tgt[1], k.tgt[2])), false, 'centripetal', 0.5),
+    };
+    curves.set(pr.id, c);
+  }
+  return c;
+}
 
 export function journeyPose(p: number, out: Pose): Pose {
+  const { keys: KEYS, pos: posCurve, tgt: tgtCurve } = journeyCurves();
   const q = THREE.MathUtils.clamp(p, 0, 1);
   let i = 0;
   while (i < KEYS.length - 2 && q > KEYS[i + 1].t) i++;
@@ -64,11 +69,12 @@ export const ramp = (x: number, a: number, b: number) => {
  */
 export function journeyEffects(p: number) {
   const open = ramp(p, 0.33, 0.5) * (1 - ramp(p, 0.8, 0.97));
+  const fade = profile().bodyFade;
   return {
     shellGhost: 0,
     capLift: 0,
-    entryCut: 44 - 32 * open,
-    bodyFade: 1 - ramp(p, 0.8, 0.95),
+    entryCut: 46 - 34 * open,
+    bodyFade: 1 - ramp(p, fade[0], fade[1]),
     interior: ramp(p, 0.36, 0.7),
   };
 }
@@ -76,10 +82,10 @@ export function journeyEffects(p: number) {
 export function journeyCaption(p: number): string | null {
   if (p < 0.04 || p > 0.985) return null;
   if (p < 0.2) return 'Approaching Node 01 across the playing surface';
-  if (p < 0.34) return 'The cap floats: a 0.6 mm gap all the way round (proposed clearance)';
+  if (p < 0.34) return profile().id === 'ob02' ? 'The cap floats: a 0.4 mm gap all the way round (CAD clearance)' : 'The cap floats: a 0.6 mm gap all the way round (proposed clearance)';
   if (p < 0.56) return 'Section opens — the cap flange is captured under the shell lip';
   if (p < 0.8) return 'Through the section: silicone bumpers either side, force-transfer puck ahead';
-  return 'Inside Node 01 — the enclosure closes behind you';
+  return profile().id === 'ob02' ? 'Inside Node 01 — between the tray floor and the underside of the cap' : 'Inside Node 01 — the enclosure closes behind you';
 }
 
 export const fitFactor = (aspect: number) => (aspect < 1.3 ? THREE.MathUtils.clamp(1.3 / aspect, 1, 2.4) : 1);
@@ -119,12 +125,13 @@ export function viewPose(view: View, aspect: number, opts: { cutAngle?: number; 
     case 'interior':
       return journeyPose(1, { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 54 });
     case 'exploded': {
-      const target = nodeToWorld(0, EXPLODE_LIFT - 37, 0);
-      return { target, pos: spherical(target, 62, 9, 385 * Math.max(1, fit * 0.85)), fov: 30 };
+      const pr = profile();
+      const target = nodeToWorld(0, pr.explodeTargetY, 0);
+      return { target, pos: spherical(target, 62, 9, pr.explodeDistance * Math.max(1, fit * 0.85)), fov: 30 };
     }
     case 'cutaway': {
       const a = (opts.cutAngle ?? 0) * DEG;
-      const target = nodeToWorld(2, 10.5, 0);
+      const target = nodeToWorld(2, profile().cutawayTargetY, 0);
       const dir = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).transformDirection(NODE1_MATRIX);
       const dist = 238 * fit;
       const e = 13 * DEG;
@@ -135,7 +142,7 @@ export function viewPose(view: View, aspect: number, opts: { cutAngle?: number; 
 
 /** World-space anchor of a part, including its current exploded offset. */
 export function partAnchorWorld(id: PartId, out = new THREE.Vector3()): THREE.Vector3 {
-  const a = PART_BY_ID[id].anchor;
+  const a = profile().byId[id]?.anchor ?? [0, 10, 0];
   return nodeToWorld(a[0], a[1] + runtime.partOffset[id] + runtime.nodeLift, a[2], out);
 }
 

@@ -116,6 +116,14 @@ export interface Finish {
 
 export const FINISHES: Finish[] = [
   {
+    id: 'bloom', name: 'Bloom', blurb: 'As modelled: pink pearl cap on an aqua body',
+    swatch: 'linear-gradient(135deg,#f6b6f3,#e7c9f6 45%,#62dbd8)',
+    cap: { color: '#f3aef1', metalness: 0.3, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.1, iridescence: 1, iridescenceIOR: 1.5, iridescenceThicknessRange: [300, 700], sheen: 0.6, sheenColor: '#ffd9fb', sheenRoughness: 0.4, envMapIntensity: 1.3 },
+    capAlt: ['#d9bbf7', '#f7c6e2'],
+    shell: { color: '#62dbd8', metalness: 0.22, roughness: 0.34, clearcoat: 0.7, clearcoatRoughness: 0.2, iridescence: 0.6, iridescenceIOR: 1.4, iridescenceThicknessRange: [260, 520], sheen: 0.5, sheenColor: '#d6fffb', sheenRoughness: 0.5, envMapIntensity: 1.0 },
+    body: { color: '#eeeaf6', metalness: 1, roughness: 0.055, iridescence: 0.35, iridescenceIOR: 1.8, iridescenceThicknessRange: [320, 520], envMapIntensity: 1.25 },
+  },
+  {
     id: 'opal', name: 'Opal Pearl', blurb: 'Pearl lacquer caps, satin platinum collars, liquid chrome body',
     swatch: 'linear-gradient(135deg,#f6f0fb,#cfe8ee 45%,#d9c8f0)',
     cap: { color: '#f4eefb', metalness: 0.52, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, iridescence: 1, iridescenceIOR: 1.5, iridescenceThicknessRange: [300, 720], sheen: 0.6, sheenColor: '#cdbbf5', sheenRoughness: 0.4, envMapIntensity: 1.35 },

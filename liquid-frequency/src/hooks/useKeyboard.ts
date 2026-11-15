@@ -9,9 +9,10 @@ const VIEW_KEYS: Record<string, View> = { '1': 'artifact', '2': 'sculptural', '3
 export function useKeyboard() {
   useEffect(() => {
     let spaceDown = false;
+    const tag = (e: KeyboardEvent) => (e.target as HTMLElement | null)?.tagName ?? '';
     const typing = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.tagName === 'BUTTON' || t.isContentEditable);
+      return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
     };
     const down = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -19,6 +20,7 @@ export function useKeyboard() {
       if (e.key === 'Escape') { s.back(); return; }
       if (typing(e)) return;
       if (e.code === 'Space') {
+        if (tag(e) === 'BUTTON') return; // Space activates the focused button, as it should
         e.preventDefault();
         if (!spaceDown && !e.repeat) { spaceDown = true; play.pressStart(); }
         return;
@@ -30,6 +32,7 @@ export function useKeyboard() {
       if (k === 'c') return s.resetCamera();
       if (k === 'h') return play.toggleHold();
       if (k === 'x') return s.set({ architecture: s.architecture === 'hybrid' ? 'fsr' : 'hybrid' });
+      if (tag(e) === 'BUTTON' && e.key === 'Enter') return;
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         if (s.view === 'artifact' || s.view === 'collection' || s.view === 'exploded') return;
         e.preventDefault();

@@ -4,9 +4,9 @@ import gsap from 'gsap';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { useApp, View, isNodeView } from '../state/store';
+import { profile, useApp, View, isNodeView } from '../state/store';
 import { runtime } from '../state/runtime';
-import { ASSEMBLY_STEPS, EXPLODE_LIFT, PART_BY_ID, PART_IDS, PartId } from '../data/parts';
+import { PART_IDS, PartId } from '../data/parts';
 import {
   journeyCaption, journeyEffects, journeyPose, nodeToWorld, partAnchorWorld, Pose, ramp, viewLimits, viewPose,
 } from './cameraPoses';
@@ -25,16 +25,24 @@ import {
 type Mode = 'idle' | 'tween' | 'journey' | 'intro';
 
 const damp = (cur: number, target: number, lambda: number, dt: number) => cur + (target - cur) * (1 - Math.exp(-lambda * dt));
-const NODE_CORE = nodeToWorld(0, 12.5, 0);
+const NODE_CORE = new THREE.Vector3();
+/** centre of the active model's internal cavity, world space */
+const core = () => { const c = profile().core; return nodeToWorld(c[0], c[1], c[2], NODE_CORE); };
 const scratch: Pose = { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 32 };
 const vA = new THREE.Vector3(), vB = new THREE.Vector3();
 
 /** Steps that apply to the current sensing architecture. */
 export function activeSteps(hybrid: boolean) {
-  return hybrid ? ASSEMBLY_STEPS : ASSEMBLY_STEPS.filter((s) => s.part !== 'piezo');
+  const steps = profile().steps;
+  return hybrid ? steps : steps.filter((s) => s.part !== 'piezo');
 }
 
-export const directorDebug = { instant: false, scrub: null as null | ((p: number) => void) };
+export const directorDebug = {
+  instant: false,
+  scrub: null as null | ((p: number) => void),
+  /** node-local mm → client pixels (for automated pointer tests) */
+  screenOf: null as null | ((x: number, y: number, z: number) => { x: number; y: number }),
+};
 /** Set before goTo() to continue on to another view when the first move lands. */
 export const chain = { next: null as View | null };
 
@@ -181,7 +189,7 @@ export function CameraDirector() {
     const s = st.current;
     const app = useApp.getState();
     const a = aspectRef.current;
-    const insideNode = camera.position.distanceTo(NODE_CORE) < 29;
+    const insideNode = camera.position.distanceTo(core()) < profile().ghost[1] + 1.5;
     const midJourney = s.mode === 'journey';
     s.focusPart = null;
 
@@ -209,6 +217,11 @@ export function CameraDirector() {
   // ── subscriptions ────────────────────────────────────────────────────
   useEffect(() => {
     (window as unknown as { __lfControls?: OrbitControlsImpl | null }).__lfControls = controls.current;
+    directorDebug.screenOf = (x, y, z) => {
+      const v = nodeToWorld(x, y + runtime.nodeLift, z).project(camera);
+      const r = gl.domElement.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    };
     // debug: place the camera at an exact point of the entry journey
     directorDebug.scrub = (p: number) => {
       kill();
@@ -229,7 +242,7 @@ export function CameraDirector() {
         tweenTo(viewPose('collection', aspectRef.current, { exhibit: s.exhibit }), 2.2);
       } else if ((s.isolate !== prev.isolate || (s.isolate && s.selectedPart !== prev.selectedPart)) && isNodeView(s.view) && s.view !== 'sculptural') {
         if (s.isolate && s.selectedPart) {
-          const info = PART_BY_ID[s.selectedPart];
+          const info = profile().byId[s.selectedPart] ?? profile().parts[0];
           const tgt = partAnchorWorld(s.selectedPart);
           const dir = vA.copy(camera.position).sub(st.current.target).normalize();
           if (dir.y < 0.25) { dir.y = 0.25; dir.normalize(); }
@@ -259,7 +272,7 @@ export function CameraDirector() {
   }, []);
 
   useFrame((state, rawDt) => {
-    const dt = Math.min(rawDt, 0.05);
+    const dt = Math.min(rawDt, 0.1);
     const s = st.current;
     const app = useApp.getState();
     const view = app.view;
@@ -284,27 +297,28 @@ export function CameraDirector() {
     // ── presentation targets ────────────────────────────────────────
     const steps = activeSteps(app.architecture === 'hybrid');
     const step = Math.min(app.assemblyStep, steps.length);
-    const done = new Set<PartId>(['shell']);
+    const pr = profile();
+    const done = new Set<PartId>([pr.datum]);
     for (let i = 0; i < step; i++) done.add(steps[i].part);
     const complete = step >= steps.length;
 
-    let tShell = 0, tCap = 0, tBody = 1, tLift = 0, tInterior = 0, tCut = 0, tCapLift = 0, tEntry = 44;
+    let tShell = 0, tCap = 0, tBody = 1, tLift = 0, tInterior = 0, tCut = 0, tCapLift = 0, tEntry = 46;
     const inJourneyViews = view === 'sculptural' || view === 'interior';
     if (inJourneyViews) {
       const p = runtime.journey;
       const e = journeyEffects(p);
       tShell = e.shellGhost; tCapLift = e.capLift; tBody = e.bodyFade; tInterior = e.interior; tEntry = e.entryCut;
       if (view === 'interior' && (s.mode !== 'journey' || p > 0.9)) {
-        const d = camera.position.distanceTo(NODE_CORE);
-        let g = ramp(d, 22, 29);
+        const d = camera.position.distanceTo(core());
+        let g = ramp(d, pr.ghost[0], pr.ghost[1]);
         if (app.isolate && app.selectedPart) g = Math.max(g, 0.94);
         g = Math.max(g, runtime.xray);
         tShell = Math.max(tShell, g); tCap = g;
       }
       if (view === 'sculptural' && s.mode !== 'journey') { tShell = Math.max(0, runtime.xray * 0.0); }
     } else if (view === 'exploded') {
-      tBody = 0; tLift = EXPLODE_LIFT; tInterior = 0.3;
-      if (step > 0 && !complete) { tShell = 0.78; tCap = step >= 2 ? 0.66 : 0; }
+      tBody = 0; tLift = pr.explodeLift; tInterior = 0.3;
+      if (pr.ghostWhileAssembling && step > 0 && !complete) { tShell = 0.78; tCap = step >= 2 ? 0.66 : 0; }
     } else if (view === 'cutaway') {
       tBody = 0; tCut = 1; tInterior = 0.75;
     }
@@ -321,11 +335,11 @@ export function CameraDirector() {
     if (Math.abs(runtime.capLift) < 1e-3) runtime.capLift = 0;
 
     for (const id of PART_IDS) {
-      const info = PART_BY_ID[id];
+      const info = pr.byId[id];
       let off = 0;
-      if (view === 'exploded') {
+      if (view === 'exploded' && info) {
         if (!done.has(id)) off = info.explode;
-        else if (info.parent && !done.has(info.parent)) off = PART_BY_ID[info.parent].explode;
+        else if (info.parent && !done.has(info.parent)) off = pr.byId[info.parent]?.explode ?? 0;
       }
       runtime.partOffset[id] = damp(runtime.partOffset[id], off, 4.2 * fast, dt);
       if (Math.abs(runtime.partOffset[id] - off) < 0.002) runtime.partOffset[id] = off;
@@ -340,19 +354,23 @@ export function CameraDirector() {
       const idle = s.mode === 'idle';
       if (idle) {
         const d = camera.position.distanceTo(c.target);
-        let minPolar = lim.minPolar;
+        // inside the node the camera must stay between the model's floor and ceiling
+        let minPolar = lim.minPolar, maxPolar = lim.maxPolar;
         if (view === 'interior' && !s.focusPart) {
-          const inside = Math.acos(THREE.MathUtils.clamp(5.4 / Math.max(d, 5.5), -1, 1));
-          minPolar = THREE.MathUtils.lerp(inside, lim.minPolar, ramp(d, 25, 42));
+          const ty = c.target.y - nodeToWorld(0, 0, 0, vA).y; // target height in the node frame
+          const up = Math.max(0.2, pr.ceilY - ty), down = Math.max(0.2, ty - pr.floorY);
+          const out = ramp(d, pr.ghost[1] - 3, pr.ghost[1] + 14);
+          minPolar = THREE.MathUtils.lerp(Math.acos(THREE.MathUtils.clamp(up / d, -1, 1)), lim.minPolar, out);
+          maxPolar = THREE.MathUtils.lerp(Math.acos(THREE.MathUtils.clamp(-down / d, -1, 1)), lim.maxPolar, out);
         }
         c.minDistance = s.focusPart ? (view === 'interior' ? 12 : 25) : lim.minD;
         c.maxDistance = lim.maxD;
         c.minPolarAngle = minPolar;
-        c.maxPolarAngle = lim.maxPolar;
+        c.maxPolarAngle = maxPolar;
         c.autoRotate = view === 'artifact' && !s.interacted && !app.reducedMotion && app.introDone && app.panel === 'none';
         s.target.copy(c.target);
         // never let the camera sink into the plinth or the shelf
-        const floor = view === 'interior' ? nodeToWorld(0, 9.9, 0, vA).y : 5;
+        const floor = view === 'interior' ? nodeToWorld(0, pr.floorY, 0, vA).y : 5;
         if (camera.position.y < floor) camera.position.y = floor;
       } else {
         c.autoRotate = false;

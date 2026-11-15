@@ -12,23 +12,11 @@ import { arcBlockGeometry } from '../geometry/lathe';
 import { fsrTextures, ringTexture, spunNormalTexture } from '../geometry/textures';
 import { applyFinish, applyVisual, COLORS, FINISH_BY_ID, makeMaterial, microNormal, PartMaterial } from './materials';
 import { life, runtime } from '../state/runtime';
-import { ENTRY_AZIMUTH } from './cameraPoses';
 import { useApp } from '../state/store';
-import { play, sim } from '../sim/play';
+import { sim } from '../sim/play';
+import { cutPlane, node01Root, planeFor, updateCutPlane, useNodePointer } from './nodeShared';
 
-/** World-space clipping plane shared by every Node 01 material in cutaway mode. */
-export const cutPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
-/** Node 01 root, exposed for annotations, camera framing and GLB export. */
-export const node01Root: { current: THREE.Group | null } = { current: null };
-
-const ENCLOSURE: PartId[] = ['shell', 'cap', 'shelf', 'cover'];
-/** During the entry journey only the enclosure the camera flies through is sectioned. */
-const ENTRY_CUT: PartId[] = ['shell', 'cap'];
-const ENTRY_U = new THREE.Vector3(Math.cos(ENTRY_AZIMUTH * DEG), 0, Math.sin(ENTRY_AZIMUTH * DEG));
-/** true while any section plane is live (used by picking) */
-let planeLive = false;
-const tmpN = new THREE.Vector3();
-const tmpP = new THREE.Vector3();
+export { cutPlane, node01Root } from './nodeShared';
 
 function useNodeMaterials() {
   return useMemo(() => {
@@ -159,26 +147,8 @@ export function Node01Assembly() {
     rootG.position.y = runtime.nodeLift;
     rootG.updateMatrixWorld();
 
-    // ── clipping plane (node-local → world) ────────────────────────────
-    // One plane, two uses: the user-driven Cutaway view, and the entry journey's
-    // chord cut that opens the shell + cap on the camera's side so it can fly in.
-    const cutaway = runtime.cutReveal > 0.002;
-    const entry = !cutaway && runtime.entryCut < 43.5;
-    const cutting = cutaway || entry;
-    planeLive = cutting;
-    if (cutaway) {
-      const a = s.cutAngle * DEG;
-      const off = THREE.MathUtils.lerp(44, s.cutOffset, runtime.cutReveal);
-      tmpN.set(Math.sin(a), 0, -Math.cos(a));
-      cutPlane.set(tmpN, off);
-      cutPlane.applyMatrix4(rootG.matrixWorld);
-    } else if (entry) {
-      tmpN.copy(ENTRY_U).negate();
-      cutPlane.set(tmpN, runtime.entryCut);
-      cutPlane.applyMatrix4(rootG.matrixWorld);
-    } else {
-      cutPlane.set(tmpN.set(0, 1, 0), 1e6); // parked: clips nothing
-    }
+    const cut = updateCutPlane(rootG, s);
+    const cutaway = cut.cutaway;
 
     // ── part transforms ───────────────────────────────────────────────
     const lift = runtime.capLift;
@@ -211,7 +181,7 @@ export function Node01Assembly() {
       if (id === 'shell') op *= THREE.MathUtils.lerp(1, 0.085, gs.shell);
       if (id === 'cap') op *= THREE.MathUtils.lerp(1, 0.07, gs.cap);
       const hl = anySel === id ? 0.5 + 0.18 * Math.sin(state.clock.elapsedTime * 3.2) : s.hoveredPart === id ? 0.35 : 0;
-      const plane = cutaway ? (s.cutInternals || ENCLOSURE.includes(id) ? cutPlane : null) : entry && ENTRY_CUT.includes(id) ? cutPlane : null;
+      const plane = planeFor(id, cut, s.cutInternals);
       const grp = g[id];
       if (grp) {
         grp.visible = op > 0.012 && (id !== 'piezo' || hybrid);
@@ -265,75 +235,7 @@ export function Node01Assembly() {
     void dt;
   });
 
-  // ── picking ─────────────────────────────────────────────────────────
-  const findHit = (e: ThreeEvent<PointerEvent | MouseEvent>): PartId | null => {
-    const cutting = planeLive;
-    for (const hit of e.intersections) {
-      let o: THREE.Object3D | null = hit.object;
-      if (o.userData.fx) continue;
-      let part: PartId | null = null;
-      let grp: THREE.Object3D | null = null;
-      while (o) { if (o.userData.part) { part = o.userData.part as PartId; grp = o; break; } o = o.parent; }
-      if (!part || !grp) continue;
-      if (!grp.visible || !grp.userData.pickable) continue;
-      if (cutting && grp.userData.clipped && cutPlane.distanceToPoint(tmpP.copy(hit.point)) < 0) continue;
-      return part;
-    }
-    return null;
-  };
-
-  const onMove = (e: ThreeEvent<PointerEvent>) => {
-    const s = useApp.getState();
-    if (s.transitioning) return;
-    if (s.view === 'artifact') { if (s.hoveredNode !== 'n1') s.set({ hoveredNode: 'n1' }); return; }
-    if (s.view === 'sculptural') { document.body.style.cursor = 'pointer'; return; }
-    if (s.view === 'collection') return;
-    const part = findHit(e);
-    if (part !== s.hoveredPart) s.set({ hoveredPart: part });
-    document.body.style.cursor = part ? 'pointer' : '';
-  };
-  const onOut = () => {
-    const s = useApp.getState();
-    document.body.style.cursor = '';
-    if (s.hoveredNode === 'n1') s.set({ hoveredNode: null });
-    if (s.hoveredPart) s.set({ hoveredPart: null });
-  };
-  const onClick = (e: ThreeEvent<MouseEvent>) => {
-    const s = useApp.getState();
-    if (e.delta > 6 || s.transitioning) return;
-    if (s.view === 'artifact') { e.stopPropagation(); s.goTo('sculptural'); return; }
-    if (s.view === 'interior' || s.view === 'exploded' || s.view === 'cutaway') {
-      const part = findHit(e);
-      if (part) { e.stopPropagation(); s.selectPart(s.selectedPart === part ? null : part); }
-    }
-  };
-  const onDown = (e: ThreeEvent<PointerEvent>) => {
-    const s = useApp.getState();
-    if (s.view !== 'sculptural' || s.transitioning) return;
-    // press only when the cap (or shell top) is the first thing under the pointer
-    const first = e.intersections.find((h) => !h.object.userData.fx);
-    let o: THREE.Object3D | null = first?.object ?? null;
-    let part: string | null = null;
-    while (o) { if (o.userData.part) { part = o.userData.part; break; } o = o.parent; }
-    if (part !== 'cap') return;
-    e.stopPropagation();
-    const controls = e.eventObject && (window as unknown as { __lfControls?: { enabled: boolean } }).__lfControls;
-    if (controls) controls.enabled = false;
-    const startY = e.nativeEvent.clientY;
-    const startForce = Math.max(0.3, s.strikeIntensity * 0.75);
-    play.pressStart(startForce);
-    const move = (ev: PointerEvent) => play.pressModulate(startForce + (ev.clientY - startY) / 140);
-    const up = () => {
-      play.pressEnd();
-      if (controls) controls.enabled = true;
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', up);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', up);
-  };
+  const pointer = useNodePointer();
 
   const setGroup = (id: PartId) => (el: THREE.Group | null) => { if (el) groups.current[id] = el; };
   const sh = { castShadow: true, receiveShadow: true };
@@ -341,7 +243,7 @@ export function Node01Assembly() {
   const tailEnd = DIM.fsr.length - DIM.fsr.headD / 2;
 
   return (
-    <group ref={root} name="Node01" onPointerMove={onMove} onPointerOut={onOut} onClick={onClick} onPointerDown={onDown}>
+    <group ref={root} name="Node01" {...pointer}>
       {/* interior light rig (cinematic) */}
       <pointLight ref={lightA} color="#7fe9f5" intensity={0} distance={120} decay={2} />
       <pointLight ref={lightB} color="#c7b2ff" intensity={0} distance={120} decay={2} position={[-13, 13.5, 9]} />

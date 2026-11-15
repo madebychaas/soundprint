@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { calloutPortalRef } from './calloutPortal';
 import { Html, Line } from '@react-three/drei';
 import { DIM, DEG, FSR_TOP_Y } from '../data/dimensions';
+import { OB } from '../data/orbitalBloom';
 import { useApp } from '../state/store';
 import { runtime } from '../state/runtime';
 import { sim } from '../sim/play';
@@ -60,10 +61,45 @@ export function CutawayAnnotations() {
   const angle = useApp((s) => s.cutAngle);
   const offset = useApp((s) => s.cutOffset);
   const compact = useApp((s) => s.resolvedQuality === 'low');
+  const model = useApp((s) => s.nodeModel);
   const grp = useRef<THREE.Group>(null);
   useFrame(() => { if (grp.current) grp.current.visible = runtime.cutReveal > 0.85; });
   const z = useMemo(() => offset + 0.15, [offset]);
   if (view !== 'cutaway' || !show) return null;
+  if (model === 'ob02') {
+    // ORBITAL BLOOM 02: every figure is read from the supplied mesh (see data/orbitalBloom.ts)
+    const ch = (r: number) => Math.sqrt(Math.max(0, r * r - offset * offset));
+    const axis = Math.abs(offset) < 0.6;
+    const bh = ch(OB.baseR), cp = ch(OB.capR);
+    return (
+      <group ref={grp} rotation-y={-angle * DEG}>
+        <Dim a={[-bh, -5, z]} b={[bh, -5, z]} ext={[[[-bh, 0, z], [-bh, -6, z]], [[bh, 0, z], [bh, -6, z]]]}
+          label={axis ? `Ø ${(OB.baseR * 2).toFixed(1)}` : `${(bh * 2).toFixed(1)}`} sub={axis ? 'tray base · CAD' : 'chord at this plane'} />
+        {cp > 2 && (
+          <Dim a={[-cp, 27, z]} b={[cp, 27, z]} ext={[[[-cp, OB.capRimY, z], [-cp, 28, z]], [[cp, OB.capRimY, z], [cp, 28, z]]]}
+            label={axis ? `Ø ${(OB.capR * 2).toFixed(1)}` : `${(cp * 2).toFixed(1)}`} sub={axis ? 'touch cap · CAD' : 'chord at this plane'} />
+        )}
+        <Dim a={[-45, 0, z]} b={[-45, OB.height, z]} ext={[[[-bh, 0, z], [-46, 0, z]], [[-cp, OB.height, z], [-46, OB.height, z]]]}
+          label={OB.height.toFixed(2)} sub="height · CAD" />
+        {axis && (
+          <>
+            <Leader at={[0, OB.fsrTopY, z]} to={[15, -13, z]} title="Soft tip ↔ FSR"
+              live={() => (sim.tipCompression > 0.004 ? `tip −${sim.tipCompression.toFixed(2)} mm` : 'touching')} tag="0.01 interference at rest · CAD" />
+            <Leader at={[-25.5, OB.stopY + 0.45, z]} to={[-14, 37, z]} side="left" title="Travel to stop"
+              live={() => `${sim.travelRemaining.toFixed(2)} mm left`} tag={`${OB.travel.toFixed(2)} max · cap 14.70 → stop pad 13.75`} />
+            {!compact && (
+              <>
+                <Leader at={[OB.capR + 0.2, 18.0, z]} to={[32, 36, z]} title="Cap ↔ shell clearance" tag="0.40 radial · CAD" />
+                <Leader at={[29.2, OB.flangeTopY, z]} to={[46, 24, z]} title="Flange capture" tag="2.5 overlap · 0.01 under the lip" />
+                <Leader at={[-OB.bumperRingR, 13.2, z]} to={[-13, -13, z]} side="left" title="Bumper"
+                  live={() => `${(OB.bumperH - sim.x).toFixed(2)} mm tall`} tag="Ø 6 × 3 silicone · compresses" />
+              </>
+            )}
+          </>
+        )}
+      </group>
+    );
+  }
   const C = DIM.cap, S = DIM.shell;
   // chord half-widths at the current plane offset, so dimensions stay honest when the plane moves
   const chord = (r: number) => Math.sqrt(Math.max(0, r * r - offset * offset));

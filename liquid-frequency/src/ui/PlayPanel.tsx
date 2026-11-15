@@ -101,7 +101,7 @@ export function PlayPanel() {
         <div className="meter aqua"><i>FSR</i><span><em ref={bind('fs')} /></span><b>sustained</b></div>
       </div>
       <SignalScope />
-      <p className="fine">Press the cap itself in Exterior, or hold <kbd>Space</kbd>. Model output — not hardware measurements.</p>
+      <p className="fine">The cap is playable: press it in Exterior; inside or in Cutaway, tap to strike or press-and-hold to sustain. Or hold <kbd>Space</kbd>. Model output — not hardware measurements.</p>
     </section>
   );
 }

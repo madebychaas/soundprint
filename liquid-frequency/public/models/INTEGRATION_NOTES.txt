@@ -1,0 +1,14 @@
+ORBITAL BLOOM 02 — Claude Integration Pack
+
+Put orbital-bloom-02.glb in liquid-frequency/public/models/orbital-bloom-02.glb
+Read model_manifest.json before mapping meshes to interactive parts.
+
+GLB geometry is already scaled in meters, from source CAD measured in millimeters. Blender/trimesh verification: bounding box extents approximately 91.7 x 80.5 x 21.78 mm (includes external protrusions/tail); upper-shell main perimeter is smaller. Do not scale to an arbitrary display size without handling camera/interaction coordinates consistently.
+
+Printed groups: 01_bottom_sensor_tray_printed, 02_biomorphic_three_lobe_shell_printed, 03_three_spiral_touch_cap_printed, 04_removable_rigid_transfer_puck_printed.
+
+Animate cap, puck, contact tip, piezo metal disc and piezo ceramic center together. Stationary: shell, tray, FSR, tail. Bumper bodies should visually compress rather than travel as rigid parts. Actual electronics remain to be tested.
+
+The soft tip and sensors are visual placeholders. Inlay glyphs are not real LEDs. This is a mechanically exploratory CAD model, not a sensor-validated digital twin.
+
+Important: replace the stand-in with the GLB for production visualization. Keep the stand-in as an optional debug comparison; the ghost overlay is only a temporary alignment tool. Recheck camera clipping, cutaway, exploded offsets, picking and relative dimensions with real GLB.

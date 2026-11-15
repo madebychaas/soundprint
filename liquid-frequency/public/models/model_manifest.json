@@ -1,0 +1,45 @@
+{
+  "model": "Angelo ORBITAL BLOOM-02 Node 01",
+  "design_status": "untested mechanical prototype",
+  "units_source_CAD": "millimeters",
+  "units_glb": "meters",
+  "outer_base_diameter_mm": 72.0,
+  "approx_max_upper_shell_span_mm": 87.5,
+  "cap_diameter_mm": 55.2,
+  "assembled_height_mm": 21.78,
+  "maximum_travel_mm": 0.95,
+  "return_bumpers": "Three soft silicone discs diameter 6mm x 3mm nominal, softness to test",
+  "contact_tip": "Soft 8mm diameter x 2mm silicone or foam disk, nonprinted, replaceable",
+  "sensor": "Adafruit #166 FSR, 12.7 mm active zone, nominal 60.4 x 18.33 x 0.56 mm footprint",
+  "piezo": "Nominal 20mm disc, model not selected, confirm exact thickness and wire position",
+  "cad_printed_parts": [
+    "cap.stl",
+    "shell.stl",
+    "puck.stl",
+    "cover.stl"
+  ],
+  "visual_design_v2": "Asymmetric 3-lobe alien bloom perimeter, triple spiral cap engraving, three shell micro-glyphs, pink pearl/aqua body. Print mechanics unchanged.",
+  "fable_animated_as_single_moving_group": [
+    "03_three_spiral_touch_cap_printed",
+    "04_removable_rigid_transfer_puck_printed",
+    "05_nonprinted_soft_contact_8x2mm",
+    "08_nominal_20mm_piezo_metal_disc",
+    "09_piezo_ceramic_center"
+  ],
+  "fable_stationary_groups": [
+    "01_bottom_sensor_tray_printed",
+    "02_biomorphic_three_lobe_shell_printed",
+    "06_adafruit_166_FSR_flexible_head_18p33mm",
+    "07_FSR_tail_to_outside_node"
+  ],
+  "prototype_warnings": [
+    "Decorative outer lobes may need slicer preview and printer fit check",
+    "The V2 accent marks are engravings, not integrated LEDs",
+    "Do not print sensor placeholders as physical parts",
+    "Do not wire piezo directly to unprotected Pico ADC",
+    "Check actual printed sliding clearance",
+    "FSR tail connector exits housing; keep it free of bends and strain",
+    "Do not let rigid puck load FSR directly; add soft contact tip",
+    "No empirical pressure/velocity test has been run"
+  ]
+}

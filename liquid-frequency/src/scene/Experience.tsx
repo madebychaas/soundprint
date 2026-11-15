@@ -51,6 +51,7 @@ export function Experience() {
       dpr={[1, high ? 1.75 : 1.3]}
       camera={{ fov: 30, near: 2, far: 9000, position: [160, 220, 400] }}
       gl={{ antialias: !high, powerPreference: 'high-performance', stencil: false }}
+      onPointerDown={() => { const a = document.activeElement as HTMLElement | null; if (a && a !== document.body && a.tagName === 'BUTTON') a.blur(); }}
       onPointerMissed={(e) => { if (e.type === 'click') { const s = useApp.getState(); if (s.selectedPart && !s.isolate) s.selectPart(null); } }}
       aria-label="Interactive 3D view of the Liquid Frequency instrument"
       role="img"

@@ -9,7 +9,8 @@ import { spunNormalTexture } from '../geometry/textures';
 import { applyFinish, FINISH_BY_ID, microNormal, norm } from './materials';
 import { Node01Assembly } from './Node01Assembly';
 import { CutawayAnnotations } from './CutawayAnnotations';
-import { ReferenceModel } from './ReferenceModel';
+import { bloomGlowGeometry, OrbitalBloomNode, useOrbitalBloomGeometry } from './OrbitalBloomNode';
+import { OB_MESHES } from '../data/orbitalBloom';
 import { life, NodeId, runtime } from '../state/runtime';
 import { useApp } from '../state/store';
 import { play } from '../sim/play';
@@ -118,7 +119,13 @@ function CompanionNode({ node, index }: { node: NodeLayout; index: 1 | 2 }) {
     applyFinish(mats.shell, f.shell);
     applyFinish(mats.cap, f.cap, f.capAlt[index - 1]);
   }, [finish, mats, index]);
-  const geo = useMemo(() => ({ shell: shellGeometry(false, 128), cap: capGeometry(id, 128), glow: glowBandGeometry() }), [id]);
+  // In the primary experience the companions borrow the real ORBITAL BLOOM 02 shell and cap
+  // (scaled, turned) so the three nodes read as one family. They remain exterior concepts.
+  const model = useApp((s) => s.nodeModel);
+  const G = useOrbitalBloomGeometry();
+  const geo = useMemo(() => (model === 'ob02'
+    ? { shell: G[OB_MESHES.shell], cap: G[OB_MESHES.cap], glow: bloomGlowGeometry(), real: true }
+    : { shell: shellGeometry(false, 128), cap: capGeometry(id, 128), glow: glowBandGeometry(), real: false }), [id, model, G]);
   useFrame((_, dt) => {
     const k = 1 - Math.exp(-dt * (runtime.companionTarget[id] > runtime.companionPress[id] ? 60 : 14));
     runtime.companionPress[id] += (runtime.companionTarget[id] - runtime.companionPress[id]) * k;
@@ -156,7 +163,7 @@ function CompanionNode({ node, index }: { node: NodeLayout; index: 1 | 2 }) {
       onPointerOut={out}
       onPointerDown={down}
     >
-      <mesh geometry={geo.shell} material={[mats.shell, mats.shell]} castShadow receiveShadow />
+      <mesh geometry={geo.shell} material={geo.real ? mats.shell : [mats.shell, mats.shell]} castShadow receiveShadow />
       <mesh ref={cap} geometry={geo.cap} material={mats.cap} castShadow receiveShadow />
       <mesh geometry={geo.glow} material={mats.glow} />
     </group>
@@ -285,6 +292,7 @@ function NodeAdornment({ node, index }: { node: NodeLayout; index: number }) {
   const id = node.id as NodeId;
   const grp = useRef<THREE.Group>(null);
   const jewel = useRef<THREE.Mesh>(null);
+  const round = useApp((s) => s.nodeModel === 'parametric'); // the meniscus ring only fits a round collar
   const R = 36 * node.scale;
   const place = useMemo(() => {
     // ring height: mean body height just outside the shell
@@ -293,7 +301,7 @@ function NodeAdornment({ node, index }: { node: NodeLayout; index: number }) {
     const ringY = sum / 12 - 0.55;
     // jewel: on the body, on the outward side of the node, turned a little toward the player
     const out = Math.atan2(node.z - 2, node.x - 4) + [0.95, -0.9, 0.5][index];
-    const jx = node.x + Math.cos(out) * (R + 9.5), jz = node.z + Math.sin(out) * (R + 9.5);
+    const jx = node.x + Math.cos(out) * (R + 11.5), jz = node.z + Math.sin(out) * (R + 11.5);
     const e = 0.4;
     const hx = (bodyHeight(jx + e, jz) - bodyHeight(jx - e, jz)) / (2 * e), hz = (bodyHeight(jx, jz + e) - bodyHeight(jx, jz - e)) / (2 * e);
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-hx, 1, -hz).normalize());
@@ -339,7 +347,7 @@ function NodeAdornment({ node, index }: { node: NodeLayout; index: number }) {
   return (
     <group ref={grp} name={`${node.label.replace(' ', '')}_Adornment_Concept`}>
       <group position={[node.x, node.elev > 0 ? place.ringY : place.ringY, node.z]} rotation={[node.tiltX, 0, node.tiltZ]}>
-        <mesh geometry={geo.ring} material={mats.ring} renderOrder={2} />
+        {round && <mesh geometry={geo.ring} material={mats.ring} renderOrder={2} />}
       </group>
       <group position={place.jewel} quaternion={place.q}>
         <mesh geometry={geo.bezel} material={mats.bezel} rotation-x={Math.PI / 2} position={[0, 0.1, 0]} />
@@ -351,13 +359,13 @@ function NodeAdornment({ node, index }: { node: NodeLayout; index: number }) {
 
 export function Instrument() {
   const n1 = NODES[0];
+  const model = useApp((s) => s.nodeModel);
   return (
     <group name="LiquidFrequency_PadController" position={[0, INSTRUMENT_LIFT, 0]}>
       <BodyShell />
       <group position={[n1.x, 0, n1.z]} rotation-y={n1.rotY}>
-        <Node01Assembly />
+        {model === 'ob02' ? <OrbitalBloomNode /> : <Node01Assembly />}
         <CutawayAnnotations />
-        <ReferenceModel />
       </group>
       <CompanionNode node={NODES[1]} index={1} />
       <CompanionNode node={NODES[2]} index={2} />

@@ -2,10 +2,11 @@ import { NodeSimulation } from './NodeSimulation';
 import { synth } from '../audio/GlassSynth';
 import { useApp } from '../state/store';
 import { NODES } from '../data/dimensions';
+import { PROFILES } from '../data/nodeModels';
 import { emitPulse, runtime } from '../state/runtime';
 
 /** The live Node 01 simulation and its bridge to the synthesizer. */
-export const sim = new NodeSimulation('hybrid');
+export const sim = new NodeSimulation('hybrid', PROFILES[useApp.getState().nodeModel].restGap);
 const N1 = NODES[0];
 
 sim.listener = {
@@ -30,12 +31,12 @@ export const play = {
     sim.strike(intensity ?? useApp.getState().strikeIntensity);
   },
   /** Strike and keep pressing until pressEnd(). */
-  pressStart(holdForce?: number) {
+  pressStart(holdForce?: number, intensity?: number) {
     if (!canPlay()) return;
     synth.ensure();
     const s = useApp.getState();
     pointerHeld = true;
-    sim.strike(s.strikeIntensity);
+    sim.strike(intensity ?? s.strikeIntensity);
     const f = holdForce ?? Math.max(0.3, s.strikeIntensity * 0.75);
     sim.setHold(f);
     useApp.setState({ pressure: f });
@@ -97,5 +98,6 @@ export const play = {
 useApp.subscribe((s, prev) => {
   if (s.muted !== prev.muted) synth.setMuted(s.muted);
   if (s.architecture !== prev.architecture) sim.setArchitecture(s.architecture);
+  if (s.nodeModel !== prev.nodeModel) { play.reset(); sim.gap = PROFILES[s.nodeModel].restGap; }
   if (s.view !== prev.view && (s.view === 'exploded' || s.view === 'collection' || s.view === 'artifact')) play.release();
 });

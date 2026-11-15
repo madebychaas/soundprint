@@ -21,7 +21,6 @@ export interface SimListener {
 }
 
 const TRAVEL = DIM.travel;
-const GAP = DIM.preTravel;
 const K_SPRING = 2.6;
 const PZ_ON = 0.03;
 const FSR_ON = 0.02;
@@ -42,6 +41,8 @@ export function equilibriumTravel(force: number): number {
 export class NodeSimulation {
   arch: Architecture;
   listener: SimListener = {};
+  /** rest air-gap between the puck tip and the FSR, mm. 0 = already touching (ORBITAL BLOOM 02 CAD). */
+  gap: number = DIM.preTravel;
 
   // commands
   holdForce = 0;
@@ -94,8 +95,9 @@ export class NodeSimulation {
   histHead = 0;
   private histAcc = 0;
 
-  constructor(arch: Architecture = 'hybrid') {
+  constructor(arch: Architecture = 'hybrid', gap: number = DIM.preTravel) {
     this.arch = arch;
+    this.gap = gap;
   }
 
   setArchitecture(a: Architecture) {
@@ -146,8 +148,8 @@ export class NodeSimulation {
   }
 
   /** Derived geometry for the renderer. */
-  get tipCompression(): number { return Math.max(0, this.x - GAP); }
-  get gapRemaining(): number { return Math.max(0, GAP - this.x); }
+  get tipCompression(): number { return Math.max(0, this.x - this.gap); }
+  get gapRemaining(): number { return Math.max(0, this.gap - this.x); }
   get travelRemaining(): number { return Math.max(0, TRAVEL - this.x); }
 
   step(dt: number) {
@@ -189,7 +191,7 @@ export class NodeSimulation {
     this.atStop = this.x >= TRAVEL - 0.004;
 
     // ── 2. sensors ─────────────────────────────────────────────────────
-    const c = Math.min(1, Math.max(0, (this.x - GAP) / (TRAVEL - GAP)));
+    const c = Math.min(1, Math.max(0, (this.x - this.gap) / (TRAVEL - this.gap)));
     const f = Math.pow(c, 1.5);
     this.fsr += (f - this.fsr) * (1 - Math.exp(-h / 0.0015));
     const prevPiezo = this.piezo;
@@ -322,9 +324,9 @@ const GESTURES: Gesture[] = [
   { id: 'restrike', label: 'Re-strike while held', detail: 'hold 50 %, strike twice on top', expected: 3, run: (s, adv) => { s.strike(0.5); s.setHold(0.5); adv(0.35); s.strike(0.7); adv(0.3); s.strike(0.7); adv(0.3); s.setHold(0); adv(0.4); } },
 ];
 
-export function runGestureComparison(arch: Architecture): GestureResult[] {
+export function runGestureComparison(arch: Architecture, gap: number = DIM.preTravel): GestureResult[] {
   return GESTURES.map((g) => {
-    const sim = new NodeSimulation(arch);
+    const sim = new NodeSimulation(arch, gap);
     const velocities: number[] = [];
     let firstLatency: number | null = null;
     let peak = 0;

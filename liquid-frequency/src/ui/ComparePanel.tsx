@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useApp } from '../state/store';
+import { useApp, useProfile } from '../state/store';
 import { GestureResult, runGestureComparison } from '../sim/NodeSimulation';
 import { sim } from '../sim/play';
 import { IconClose } from './icons';
@@ -44,6 +44,8 @@ export function ComparePanel() {
   const [results, setResults] = useState<{ fsr: GestureResult[]; hybrid: GestureResult[] } | null>(null);
   const live = useRef<HTMLSpanElement>(null);
   const hybrid = arch === 'hybrid';
+  const pr = useProfile();
+  const touching = pr.restGap <= 0;
 
   useEffect(() => {
     let raf = 0;
@@ -57,7 +59,7 @@ export function ComparePanel() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const run = () => setResults({ fsr: runGestureComparison('fsr'), hybrid: runGestureComparison('hybrid') });
+  const run = () => setResults({ fsr: runGestureComparison('fsr', pr.restGap), hybrid: runGestureComparison('hybrid', pr.restGap) });
   const summary = useMemo(() => {
     if (!results) return null;
     const count = (r: GestureResult[]) => r.reduce((a, g) => a + (g.notes === g.expected ? 1 : 0), 0);
@@ -98,14 +100,14 @@ export function ComparePanel() {
           <ul>
             <li>One sensor estimates both note velocity (from pressure slope) and sustained pressure.</li>
             <li>2 conductors per node, 1 ADC channel. Three nodes fit the Pico's three ADC inputs exactly.</li>
-            <li>Nothing registers until the puck closes the 0.20 mm gap, so onset is later and very light strikes can vanish.</li>
+            <li>{touching ? 'In this CAD the soft tip already rests on the FSR (0.01 mm nominal interference), so there is no dead travel. Whether a printed part keeps that contact — or ends up with a gap or a preload — decides how light a touch it can read.' : 'Nothing registers until the puck closes the 0.20 mm gap, so onset is later and very light strikes can vanish.'}</li>
             <li>Slope-derived velocity has a compressed range; re-striking while holding is hard to detect.</li>
           </ul>
         </div>
         <div className={hybrid ? 'on' : ''}>
           <h3>Hybrid FSR + piezo</h3>
           <ul>
-            <li>Piezo catches the strike onset and its transient peak; the FSR measures sustained pressure.</li>
+            <li>Piezo catches the strike onset and its transient peak; the FSR measures sustained pressure.{pr.id === 'ob02' ? ' In this model the piezo is bonded under the moving cap, so its leads flex on every press.' : ''}</li>
             <li>Firmware fuses both: piezo → note-on and velocity, FSR → aftertouch and release.</li>
             <li>4 conductors per node, 2 analog channels. Three nodes need six — more than the Pico's three, so an external ADC or analog mux is required.</li>
             <li>Needs safe piezo input conditioning and per-node threshold / crosstalk tuning.</li>
@@ -135,7 +137,7 @@ export function ComparePanel() {
             </tbody>
             <tfoot><tr><th>Gestures read correctly</th><td>{summary.fsr} / {summary.total}</td><td>{summary.hybrid} / {summary.total}</td></tr></tfoot>
           </table>
-          <p className="fine">Each cell: notes detected / expected · MIDI velocities · latency from gesture start to first note-on. These come from the behavioural model in this app. They show what to measure on the bench — they are not measurements.</p>
+          <p className="fine">Run with a rest gap of {pr.restGap.toFixed(2)} mm ({pr.name}). Each cell: notes detected / expected · MIDI velocities · latency from gesture start to first note-on. These come from the behavioural model in this app. They show what to measure on the bench — they are not measurements.</p>
         </>
       )}
       <p className="verdict"><b>What would settle it:</b> if bench tests show the FSR alone gives reliable light-touch onsets and enough velocity range for Angelo's playing, the simpler build wins. If strikes feel late or flat, the piezo earns its extra channel.</p>

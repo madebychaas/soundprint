@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import type { PartId } from '../data/parts';
-import { ASSEMBLY_STEPS } from '../data/parts';
 import type { Architecture } from '../sim/NodeSimulation';
+import { NodeModelId, NodeProfile, PROFILES } from '../data/nodeModels';
 
 export type View = 'artifact' | 'sculptural' | 'interior' | 'exploded' | 'cutaway' | 'collection';
-export type FinishId = 'opal' | 'lavender' | 'glacier' | 'midnight';
+export type FinishId = 'bloom' | 'opal' | 'lavender' | 'glacier' | 'midnight';
 export type LightingId = 'aubergine' | 'aquatic' | 'dawn';
 export type Quality = 'auto' | 'high' | 'low';
 export type PanelId = 'none' | 'compare' | 'specs' | 'settings';
@@ -14,6 +14,8 @@ const mq = (q: string) => (typeof window !== 'undefined' && window.matchMedia ? 
 
 export interface AppState {
   ready: boolean;
+  /** which description of Node 01 is on screen: the real model, or the parametric comparison */
+  nodeModel: NodeModelId;
   view: View;
   prevView: View;
   /** when set, the director chains through to this view after the current move */
@@ -47,9 +49,6 @@ export interface AppState {
   pressure: number;
   latched: boolean;
   cameraResetNonce: number;
-  /** null = not checked yet. The ORBITAL BLOOM 02 export is optional and loaded from public/models. */
-  refAvailable: boolean | null;
-  showReference: boolean;
 
   set: (p: Partial<AppState>) => void;
   goTo: (v: View) => void;
@@ -58,12 +57,16 @@ export interface AppState {
   setStep: (n: number) => void;
   togglePanel: (p: PanelId) => void;
   resetCamera: () => void;
+  setModel: (m: NodeModelId) => void;
 }
 
-export const TOTAL_STEPS = ASSEMBLY_STEPS.length;
+/** The active Node 01 profile (geometry-dependent data). */
+export const profile = (): NodeProfile => PROFILES[useApp.getState().nodeModel];
+export const useProfile = (): NodeProfile => PROFILES[useApp((s) => s.nodeModel)];
 
 export const useApp = create<AppState>((set, get) => ({
   ready: false,
+  nodeModel: 'ob02',
   view: 'artifact',
   prevView: 'artifact',
   transitioning: false,
@@ -82,7 +85,7 @@ export const useApp = create<AppState>((set, get) => ({
   cutInternals: true,
   showDimensions: true,
 
-  finish: 'opal',
+  finish: 'bloom',
   lighting: 'aubergine',
   quality: 'auto',
   resolvedQuality: mq('(max-width: 820px)') || mq('(pointer: coarse)') ? 'low' : 'high',
@@ -96,8 +99,6 @@ export const useApp = create<AppState>((set, get) => ({
   pressure: 0,
   latched: false,
   cameraResetNonce: 0,
-  refAvailable: null,
-  showReference: false,
 
   set: (p) => set(p),
   goTo: (v) => {
@@ -123,9 +124,10 @@ export const useApp = create<AppState>((set, get) => ({
     s.goTo('sculptural');
   },
   selectPart: (p) => set((s) => ({ selectedPart: p, isolate: p ? s.isolate : false, sheetOpen: p ? true : s.sheetOpen })),
-  setStep: (n) => set({ assemblyStep: Math.max(0, Math.min(TOTAL_STEPS, n)) }),
+  setStep: (n) => set((s) => ({ assemblyStep: Math.max(0, Math.min(PROFILES[s.nodeModel].steps.length, n)) })),
   togglePanel: (p) => set((s) => ({ panel: s.panel === p ? 'none' : p })),
   resetCamera: () => set((s) => ({ cameraResetNonce: s.cameraResetNonce + 1, selectedPart: null, isolate: false })),
+  setModel: (m) => set((s) => (s.nodeModel === m ? {} : { nodeModel: m, selectedPart: null, hoveredPart: null, isolate: false, assemblyStep: 0, cameraResetNonce: s.cameraResetNonce + 1 })),
 }));
 
 export const isNodeView = (v: View) => v === 'sculptural' || v === 'interior' || v === 'exploded' || v === 'cutaway';

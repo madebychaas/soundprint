@@ -34,8 +34,8 @@ export const runtime = {
   companionTarget: { n2: 0, n3: 0 } as Record<'n2' | 'n3', number>,
   knob: 0.5,
   fps: 60,
-  /** entry journey: chord distance of the section plane along the entry corridor (44 = parked outside) */
-  entryCut: 44,
+  /** entry journey: chord distance of the section plane along the entry corridor (46 = parked outside) */
+  entryCut: 46,
 };
 
 export type NodeId = 'n1' | 'n2' | 'n3';

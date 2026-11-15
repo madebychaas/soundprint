@@ -1,9 +1,9 @@
-# Reference assets
+# ORBITAL BLOOM 02 reference assets
 
-Drop the ORBITAL BLOOM 02 export here as `orbital-bloom-02.glb`.
+- `orbital-bloom-02.glb` — the real Node 01 model (trimesh export, metres, **Z-up**, 18 named meshes, positions only).
+- `model_manifest.json` — units, key dimensions, which groups move and which stay still, prototype warnings.
+- `INTEGRATION_NOTES.txt` — the notes supplied with the pack.
 
-When the file is present the app detects it, and Specs → "Overlay ORBITAL BLOOM 02 reference" draws it as a
-translucent ghost on top of the parametric Node 01 so the two can be compared. Assumptions made on load:
-Y is up (or Z-up with a largest-extent heuristic is NOT applied), the model is in metres if its largest
-extent is under 2 units and in millimetres otherwise, and its bounding box is centred on the node axis
-with its lowest point at Y = 0. Adjust `src/scene/ReferenceModel.tsx` if the export differs.
+The app loads the GLB in `src/scene/OrbitalBloomNode.tsx`, converts it to the node frame (millimetres, Y-up:
+CAD (x, y, z) → (x, z, −y)), computes creased normals, and maps the named meshes to interactive parts in
+`src/data/orbitalBloom.ts`. Numbers in that file were measured from this mesh.

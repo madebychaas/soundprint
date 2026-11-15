@@ -3,13 +3,15 @@ import { DIM } from './dimensions';
 export type PartId = 'shell' | 'cap' | 'puck' | 'bumpers' | 'fsr' | 'piezo' | 'shelf' | 'harness' | 'cover' | 'screws';
 
 /** Honesty categories used throughout the UI. */
-export type Provenance = 'reference' | 'proposed' | 'purchased' | 'concept';
+export type Provenance = 'reference' | 'proposed' | 'purchased' | 'concept' | 'cad' | 'placeholder';
 
 export const PROVENANCE_LABEL: Record<Provenance, string> = {
   reference: 'Reference dimension',
   proposed: 'Proposed — unvalidated',
   purchased: 'Purchased part',
   concept: 'Conceptual styling',
+  cad: 'From ORBITAL BLOOM 02 CAD',
+  placeholder: 'Placeholder in the CAD',
 };
 
 export interface PartInfo {
