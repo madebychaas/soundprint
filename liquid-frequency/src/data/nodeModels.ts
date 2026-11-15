@@ -109,6 +109,7 @@ export const PROFILES: Record<NodeModelId, NodeProfile> = {
     ceilY: 17.8,
     padTopY: 20.4,
     cutawayTargetY: 10.5,
-    probe: { capInside: [-4, 18.6, 7], pick: { at: [-2.5, 13.2, 4.33], part: 'puck' } },
+    // the side of the cap's centre boss: the flat ceiling sits above the top of the frame from the settle point
+    probe: { capInside: [-3.1, 16.2, 5.37], pick: { at: [-2.5, 13.2, 4.33], part: 'puck' } },
   },
 };

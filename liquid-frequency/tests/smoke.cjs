@@ -22,6 +22,8 @@ const idleIn = (view, p) => `(() => { const L = window.__lf, s = L.store.getStat
 const screenOf = (page, p) => ev(page, ([a, b, c]) => window.__lf.directorDebug.screenOf(a, b, c), p);
 /** click a button by accessible name without letting a missing control abort the whole run */
 const click = (page, name, opts = {}) => page.getByRole('button', { name, ...opts }).click({ timeout: 20000 }).then(() => true, (e) => { console.log(`  (could not click ${name}: ${String(e).split('\n')[0]})`); return false; });
+/** wait until n more frames have actually been drawn (the simulation runs on its own clock, ahead of rendering) */
+const frames = async (page, n = 2) => { for (let i = 0; i < n; i++) { const t = await ev(page, () => window.__lf.runtime.time); await until(page, (t0) => window.__lf.runtime.time > t0, 60000, t); } };
 const quiet = (page) => until(page, () => !window.__lf.sim.gate && window.__lf.synth.activeVoices === 0 && window.__lf.sim.x < 0.02, 20000);
 
 async function open(browser, opts, query) {
@@ -50,7 +52,7 @@ async function journeyAndPlay(page, tag) {
   await page.mouse.move(pt.x, pt.y);
   await page.mouse.down(); await page.waitForTimeout(60); await page.mouse.up();
   ok = await until(page, (n) => window.__lf.sim.noteCount > n, 15000, n0);
-  check(`${tag}: tap on the cap's underside → note-on`, ok);
+  check(`${tag}: tap on the cap's underside → note-on`, ok, ok ? '' : `pointer ${Math.round(pt.x)},${Math.round(pt.y)} · ${await ev(page, () => window.__lf.pointerDebug.last)}`);
   check(`${tag}: tap ends → note-off, no voice left`, await quiet(page));
   check(`${tag}: tapping the cap does not select it`, await ev(page, () => window.__lf.store.getState().selectedPart === null));
   return { probe, pt };
@@ -82,12 +84,14 @@ const run = (name) => ONLY.length === 0 || ONLY.includes(name);
   const { probe, pt } = await journeyAndPlay(page, 'real model');
 
   // ── mechanical relationships while the cap is held from inside ──────
+  await frames(page, 2);
   const rest = await ev(page, () => window.__lf.mechanics());
   await page.mouse.move(pt.x, pt.y);
   await page.mouse.down();
   ok = await until(page, () => window.__lf.sim.gate && window.__lf.sim.fsr > 0.05 && window.__lf.synth.activeVoices === 1 && window.__lf.sim.v < 0.5 && window.__lf.sim.x > 0.3, 20000);
   check('press-and-hold on the cap → gate on, FSR loaded, one voice', ok);
   await settle(page, 700);
+  await frames(page, 2);
   const held = await ev(page, () => window.__lf.mechanics());
   const d = (k) => +(held[k] - rest[k]).toFixed(3);
   const near = (a, b, tol = 0.03) => Math.abs(a - b) <= tol;
