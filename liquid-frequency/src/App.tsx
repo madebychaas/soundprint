@@ -11,6 +11,7 @@ import { ComparePanel } from './ui/ComparePanel';
 import { SpecPanel } from './ui/SpecPanel';
 import { CollectionPanel, JourneyCaption, Loader, PrimaryAction, SettingsPanel } from './ui/Overlays';
 import { IconChevron } from './ui/icons';
+import { calloutPortal } from './scene/calloutPortal';
 
 /** Desktop: play panel bottom-left, context panel right. Mobile: one tabbed bottom sheet. */
 function Dock() {
@@ -59,6 +60,7 @@ export default function App() {
   const flying = transitioning && !!stage;
   return (
     <div className={`app view-${view} ${flying ? 'flying' : ''} ${panel !== 'none' ? 'panel-open' : ''} ${reduced ? 'reduced' : ''} ${lowFx ? 'fx-low' : ''}`}>
+      <div className="callouts" ref={(el) => { calloutPortal.current = el; }} />
       <Experience />
       <div className="veil" aria-hidden />
       <div className="ui">

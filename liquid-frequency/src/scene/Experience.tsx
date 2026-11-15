@@ -10,9 +10,15 @@ import { CollectionExhibits } from './CollectionExhibits';
 import { SceneLabels } from './SceneLabels';
 import { Effects } from './Effects';
 import { sim } from '../sim/play';
+import { synth } from '../audio/GlassSynth';
+import { Life } from './Life';
 
 function SimulationDriver() {
-  useFrame((_, dt) => sim.step(dt), -3);
+  useFrame((_, dt) => {
+    sim.step(dt);
+    // stuck-note guard: the simulated gate is the only authority for the Node 01 voice
+    if (!sim.gate && synth.has('n1')) synth.noteOff('n1');
+  }, -3);
   return null;
 }
 
@@ -52,6 +58,7 @@ export function Experience() {
       <RendererSetup post={high} />
       <SimulationDriver />
       <CameraDirector />
+      <Life />
       <Suspense fallback={null}>
         <StudioEnvironment />
         <Bvh>

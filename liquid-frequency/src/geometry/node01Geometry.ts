@@ -67,7 +67,8 @@ function regroupShell(geo: THREE.BufferGeometry): THREE.BufferGeometry {
     for (let k = 0; k < 3; k++) { cx += pos.getX(t * 3 + k); cy += pos.getY(t * 3 + k); cz += pos.getZ(t * 3 + k); }
     cx /= 3; cy /= 3; cz /= 3;
     const r = Math.hypot(cx, cz);
-    const isExt = r > shellOuterR(cy) - 0.12 || (cy < 0.02 && r > DIM.shell.lowerBoreR);
+    // the whole top rim (incl. its inner fillet) belongs to the exterior finish, so quads never split across materials
+    const isExt = r > shellOuterR(cy) - 0.12 || cy > DIM.shell.rimY - 0.33 || (cy < 0.02 && r > DIM.shell.lowerBoreR);
     (isExt ? ext : int).push(t);
   }
   const P = new Float32Array(pos.count * 3), Nn = new Float32Array(pos.count * 3), U = new Float32Array(pos.count * 2);
@@ -192,8 +193,8 @@ export function capPadGeometry(): THREE.BufferGeometry {
       roundCorners([
         { x: 0, y: C.padBottomY },
         { x: C.padR, y: C.padBottomY, r: 0.3 },
+        // open at the top: the pad fuses into the plate, so no face may sit inside the plate's section
         { x: C.padR + 0.5, y: C.plateUnderY + 0.1 },
-        { x: 0, y: C.plateUnderY + 0.1 },
       ], false, 4),
       { segments: 40 },
     );

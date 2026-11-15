@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { calloutPortalRef } from './calloutPortal';
 import { Html, Line } from '@react-three/drei';
 import { DIM, DEG, FSR_TOP_Y } from '../data/dimensions';
 import { useApp } from '../state/store';
@@ -25,7 +26,7 @@ function Dim({ a, b, ext, label, sub }: { a: P3; b: P3; ext?: [P3, P3][]; label:
       <Line points={tick(a)} {...props} />
       <Line points={tick(b)} {...props} />
       {ext?.map((e, i) => <Line key={i} points={e} {...props} opacity={0.35} />)}
-      <Html position={mid} center zIndexRange={[20, 0]} className="callout-wrap">
+      <Html portal={calloutPortalRef} position={mid} center zIndexRange={[20, 0]} className="callout-wrap">
         <div className="dim-label"><b>{label}</b>{sub && <span>{sub}</span>}</div>
       </Html>
     </group>
@@ -42,7 +43,7 @@ function Leader({ at, to, title, live, tag, side = 'right' }: { at: P3; to: P3; 
         <sphereGeometry args={[0.28, 12, 8]} />
         <meshBasicMaterial color="#8ff0ff" depthTest={false} toneMapped={false} />
       </mesh>
-      <Html position={to} zIndexRange={[20, 0]} className="callout-wrap">
+      <Html portal={calloutPortalRef} position={to} zIndexRange={[20, 0]} className="callout-wrap">
         <div className={`leader-label ${side}`}>
           <b>{title}</b>
           {live && <span ref={span} className="live" />}

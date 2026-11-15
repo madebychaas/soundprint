@@ -2,7 +2,7 @@ import { NodeSimulation } from './NodeSimulation';
 import { synth } from '../audio/GlassSynth';
 import { useApp } from '../state/store';
 import { NODES } from '../data/dimensions';
-import { runtime } from '../state/runtime';
+import { emitPulse, runtime } from '../state/runtime';
 
 /** The live Node 01 simulation and its bridge to the synthesizer. */
 export const sim = new NodeSimulation('hybrid');
@@ -88,6 +88,7 @@ export const play = {
     const n = NODES.find((x) => x.id === id)!;
     const vel = 0.35 + useApp.getState().strikeIntensity * 0.6;
     synth.noteOn(id, n.midi, vel);
+    emitPulse(id, 0.5 + vel * 0.6);
     runtime.companionTarget[id] = 1;
     window.setTimeout(() => { runtime.companionTarget[id] = 0; synth.noteOff(id); }, 160);
   },

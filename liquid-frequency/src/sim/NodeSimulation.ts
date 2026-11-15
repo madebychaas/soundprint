@@ -59,6 +59,7 @@ export class NodeSimulation {
   piezo = 0; // 0 … 1 transient envelope
   piezoPeak = 0; // display hold of the last transient peak
   piezoAge = 10; // seconds since the last transient
+  strikeAge = 10; // seconds since the last strike command (drives the shelf wave visual)
 
   // firmware outputs
   gate = false;
@@ -87,6 +88,9 @@ export class NodeSimulation {
   readonly histPiezo = new Float32Array(HN);
   readonly histFsr = new Float32Array(HN);
   readonly histGate = new Float32Array(HN);
+  /** note-on markers: velocity / 127 at the sample where a note started, else 0 */
+  readonly histVel = new Float32Array(HN);
+  private velMark = 0;
   histHead = 0;
   private histAcc = 0;
 
@@ -108,6 +112,7 @@ export class NodeSimulation {
     const i = Math.min(1, Math.max(0.01, intensity));
     this.pulses.push({ t0: this.t, amp: 0.02 + 1.2 * Math.pow(i, 1.15) });
     this.lastStrike = i;
+    this.strikeAge = 0;
     this.commandT = this.t;
     this.commandOpen = true;
     this.lastMissed = false;
@@ -137,7 +142,7 @@ export class NodeSimulation {
     if (this.gate) this.noteOff();
     this.velocity = 0; this.cc = 0; this.lastStrike = 0; this.lastSource = null;
     this.lastLatencyMs = null; this.lastMissed = false; this.commandOpen = false;
-    this.histPiezo.fill(0); this.histFsr.fill(0); this.histGate.fill(0);
+    this.histPiezo.fill(0); this.histFsr.fill(0); this.histGate.fill(0); this.histVel.fill(0); this.strikeAge = 10;
   }
 
   /** Derived geometry for the renderer. */
@@ -191,6 +196,7 @@ export class NodeSimulation {
     this.piezo *= Math.exp(-h / 0.042);
     if (this.piezo < 1e-4) this.piezo = 0;
     this.piezoAge += h;
+    this.strikeAge += h;
 
     // ── 3. firmware ────────────────────────────────────────────────────
     this.fsrPast.push(this.fsr);
@@ -254,6 +260,8 @@ export class NodeSimulation {
       this.histPiezo[this.histHead] = this.arch === 'hybrid' ? this.piezo : 0;
       this.histFsr[this.histHead] = this.fsr;
       this.histGate[this.histHead] = this.gate ? 1 : 0;
+      this.histVel[this.histHead] = this.velMark;
+      this.velMark = 0;
     }
     // keep the piezo peak visible on the scope even though it is only ≈40 ms wide
     if (this.arch === 'hybrid' && this.piezo > this.histPiezo[this.histHead]) this.histPiezo[this.histHead] = this.piezo;
@@ -266,6 +274,7 @@ export class NodeSimulation {
     this.lastSource = source;
     this.noteOnT = this.t;
     this.noteCount++;
+    this.velMark = velocity / 127;
     this.fsrMinSinceOn = this.fsr;
     this.lastMissed = false;
     if (this.commandOpen || this.t - this.commandT < 0.3) {

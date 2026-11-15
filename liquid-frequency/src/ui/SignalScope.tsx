@@ -35,6 +35,15 @@ export function SignalScope() {
       };
       trace(sim.histFsr, 'rgba(143,240,255,0.95)', 'rgba(143,240,255,0.12)');
       trace(sim.histPiezo, 'rgba(201,182,242,0.95)', 'rgba(201,182,242,0.16)');
+      // note-on markers: a stem whose height is the MIDI velocity
+      g.strokeStyle = 'rgba(255,255,255,0.9)'; g.fillStyle = '#fff'; g.lineWidth = 1;
+      for (let i = 0; i < N; i++) {
+        const v = sim.histVel[(head + 1 + i) % N];
+        if (v <= 0) continue;
+        const x = (i / (N - 1)) * w, y = bottom - v * span;
+        g.beginPath(); g.moveTo(x + 0.5, bottom); g.lineTo(x + 0.5, y); g.stroke();
+        g.beginPath(); g.arc(x + 0.5, y, 2, 0, Math.PI * 2); g.fill();
+      }
       // gate bar
       g.fillStyle = 'rgba(255,255,255,0.75)';
       let start = -1;
@@ -47,5 +56,5 @@ export function SignalScope() {
     draw();
     return () => cancelAnimationFrame(raf);
   }, []);
-  return <canvas ref={ref} className="scope" role="img" aria-label="Simulated signal traces: piezo transient, sustained pressure and note gate over the last four seconds" />;
+  return <canvas ref={ref} className="scope" role="img" aria-label="Simulated signal traces over the last four seconds: piezo transient, sustained pressure, note gate, and a stem at each note-on whose height is its velocity" />;
 }

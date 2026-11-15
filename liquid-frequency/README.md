@@ -1,4 +1,4 @@
-# LIQUID FREQUENCY — Instrument Study 01
+# LIQUID FREQUENCY — Instrument Study 01 · ORBITAL BLOOM 02
 
 An interactive 3D design-and-engineering study of a one-of-one, three-node electronic MIDI instrument being built as a gift for Angelo. One continuous real-time world: the sculptural instrument, a camera journey *into* pressure node 01, and a working mechanical / sensor / MIDI / audio simulation of that node.
 
@@ -47,7 +47,7 @@ src/
   export/      exportNodeGLB.ts
 ```
 
-- **One WebGL canvas.** Every view is the same scene; view changes are eased camera moves, and Exterior ↔ Interior follows a scripted spline through the opening between the lifted cap and the shell rim. Each move is driven by one scalar, so it can be interrupted and reversed.
+- **One WebGL canvas.** Every view is the same scene; view changes are eased camera moves, and Exterior ↔ Interior follows a scripted spline through a true section cut in the shell and cap (see *The entry journey*). Each move is driven by one scalar, so it can be interrupted and reversed.
 - **Units.** 1 world unit = 1 mm. Node-local frame: Y up, Y = 0 at the underside of the lower cover, FSR tail along +X.
 - **Rendering tiers.** *Cinematic* adds AO, depth of field, bloom, a reflective plinth and 1.75× pixel density; *Efficient* drops them. Auto falls back if the frame rate declines.
 
@@ -55,9 +55,38 @@ src/
 
 1. **Dimension-grounded geometry** — Node 01 is generated parametrically from `data/dimensions.ts`.
 2. **Conceptual industrial design** — the liquid-chrome body, Nodes 02 / 03, rotary control, proximity window, finishes and the glow line.
-3. **Simulation and cinematic effects** — lighting, ghosting, the cap-lift reveal, all signal read-outs, MIDI values and sound.
+3. **Simulation and cinematic effects** — lighting, ghosting, breathing, ripple pulses, jewels, the strike wave across the shelf, all signal read-outs, MIDI values and sound.
 
 The UI tags every part and number as *reference*, *proposed*, *purchased* or *concept*.
+
+## The entry journey (sprint 2)
+
+`scene/cameraPoses.ts` holds eight keyframes in node-local cylindrical coordinates along a corridor at 120° — the one azimuth with no bumper, stop or wire in the way.
+
+1. Swing low and wide across the playing surface.
+2. Macro on the hairline gap around the floating cap.
+3. A section plane (a chord cut perpendicular to the corridor) sweeps in from 44 mm to 12 mm off the axis. It clips **only the shell and cap**, on the camera's side, and their cut faces are drawn hatched. The flange is seen captured under the lip; nothing is lifted or moved.
+4. The camera flies through the removed segment — there is no geometry there to clip against — between the two bumpers toward the puck.
+5. The plane sweeps back out, so the enclosure closes over and behind the camera, which settles 19.8 mm from the axis, inside the cap skirt.
+6. Free orbit. Pulling back past ~22 mm turns the walls to ghost glass so the camera never ends up inside a solid.
+
+Exiting plays the same parameter in reverse. Sprint 1 opened the node by lifting the cap; that was replaced because the real cap is captive.
+
+## The living layer (sprint 2)
+
+All of this is cinematic and sits in `scene/Life.tsx`, the body shader in `scene/Instrument.tsx`, and `state/runtime.ts` (`life`). None of it feeds the mechanical or sensor model, and reduced-motion turns the motion off.
+
+- **Breath** — a 5.4 s cycle that deepens and relaxes the frozen ripples in the chrome, and nudges the companion caps and glow lines.
+- **Ripple pulses** — each node sends a slow ring through the body on its own clock (different speeds per node). A touch sends a stronger one, and the other two nodes answer faintly a moment later.
+- **Pointer proximity** — the surface swells slightly under the pointer; the nearest cap, its glow line, collar ring and jewel respond.
+- **Three jewels** — aqua on Node 01 (breathes), lilac on Node 02 (an occasional double twinkle), opal on Node 03 (drifts in hue).
+- **Collar rings** — a translucent meniscus where each shell meets the body, tinted per node.
+- **Reflection drift** — the studio environment rotates a few degrees back and forth so chrome and pearl are never perfectly still.
+- **Strike wave** — inside the node, a ring crosses the shelf from the force path toward the piezo on each strike. It is a visualisation of the idea, not a simulated wavefront.
+
+## ORBITAL BLOOM 02 reference asset
+
+The GLB / CAD export for ORBITAL BLOOM 02 was **not supplied**, so Node 01 is still the parametric stand-in. Put the export at `public/models/orbital-bloom-02.glb`; the app detects it and Specs offers a ghost overlay on Node 01 for comparison (load assumptions are in `public/models/README.md`). Replacing the parametric geometry with the real parts is the next step once the file exists.
 
 ## Engineering assumptions
 
@@ -93,6 +122,6 @@ Specs → *Download Node 01 as GLB* writes the assembled node with named parts, 
 
 ## Verification done for this build
 
-Checked in headless Chromium with software rendering: type-check and production build pass; no console errors; every view renders; the entry journey was inspected frame by frame at fixed points; press, hold, release, both sensing architectures, assembly steps, part selection and isolation, the movable section with live call-outs, the collection view, a 390 px mobile layout and audio start / stop were exercised.
+Checked in headless Chromium with software rendering: type-check and production build pass; no console errors; every view renders; the entry journey was inspected at fixed points and also run live forward, reversed, and interrupted mid-flight; press, hold, release, both sensing architectures, assembly steps, part selection and isolation, the movable section with live call-outs, the collection view, a 390 px mobile layout, reduced-motion cuts and audio start / stop were exercised.
 
-Not verified: real-GPU frame rate, the feel of the camera timing at full speed, how it sounds, touch gestures on physical devices, Safari / Firefox, and screen-reader behaviour.
+Not verified: the living-layer motion in real time (only still frames were inspected), real-GPU frame rate, the feel of the camera timing at full speed, how it sounds, touch gestures on physical devices, Safari / Firefox, and screen-reader behaviour.

@@ -28,13 +28,13 @@ const rys = (r: number, y: number, s: number) => nodeToWorld(U.x * r + W.x * s, 
 // ── Entry journey keyframes (node-local cylindrical: radius along the corridor, height, lateral) ──
 const KEYS = [
   { t: 0.0, pos: [92, 64, 18], tgt: [0, 19, 0], fov: 32 },
-  { t: 0.16, pos: [60, 34, 12], tgt: [8, 21, 0], fov: 34 }, // macro pass over the playing surface
-  { t: 0.3, pos: [47, 24.6, 6], tgt: [27, 20.6, 0], fov: 38 }, // low, side-on to the cap-to-shell gap
-  { t: 0.47, pos: [42, 23.8, 2.5], tgt: [27, 22.6, 0], fov: 40 }, // hold while the cap lifts
-  { t: 0.59, pos: [31, 23.2, 0.5], tgt: [14, 15, 0], fov: 46 }, // through the opening, under the flange
-  { t: 0.68, pos: [26.4, 21.6, 0], tgt: [6, 13, 0], fov: 50 },
-  { t: 0.8, pos: [22.5, 17.0, -0.8], tgt: [0, 12.6, 0], fov: 54 },
-  { t: 1.0, pos: [19.8, 14.5, 3.2], tgt: [-1, 12.4, 0], fov: 54 },
+  { t: 0.15, pos: [66, 31, 34], tgt: [5, 20.5, 0], fov: 33 }, // swing low and wide across the playing surface
+  { t: 0.29, pos: [45, 25.2, 11], tgt: [27.7, 21.0, 0], fov: 37 }, // macro on the hairline gap around the floating cap
+  { t: 0.37, pos: [42.5, 24.4, 6], tgt: [27.4, 20.4, 0], fov: 38 }, // hold while the section opens
+  { t: 0.53, pos: [45, 17.2, 15], tgt: [14, 14.4, 13], fov: 44 }, // level with the cut: puck, bumper, and the flange captured under the lip
+  { t: 0.67, pos: [31.5, 16.2, 4], tgt: [7, 13.4, 1], fov: 48 }, // through the opened section
+  { t: 0.81, pos: [24.5, 15.3, 1.6], tgt: [0, 12.8, 0], fov: 52 },
+  { t: 1.0, pos: [19.8, 14.5, 3.2], tgt: [-1, 12.4, 0], fov: 54 }, // settled inside; the enclosure closes behind
 ];
 const posCurve = new THREE.CatmullRomCurve3(KEYS.map((k) => rys(k.pos[0], k.pos[1], k.pos[2])), false, 'centripetal', 0.5);
 const tgtCurve = new THREE.CatmullRomCurve3(KEYS.map((k) => rys(k.tgt[0], k.tgt[1], k.tgt[2])), false, 'centripetal', 0.5);
@@ -56,23 +56,30 @@ export const ramp = (x: number, a: number, b: number) => {
   return t * t * (3 - 2 * t);
 };
 
-/** Effects keyed to the journey parameter. */
+/**
+ * Effects keyed to the journey parameter.
+ * The enclosure is opened by a true section plane (a chord cut on the camera's
+ * side), not by lifting the captive cap. `entryCut` is that plane's distance from
+ * the node axis along the entry corridor: 44 = parked outside, 12 = fully open.
+ */
 export function journeyEffects(p: number) {
+  const open = ramp(p, 0.33, 0.5) * (1 - ramp(p, 0.8, 0.97));
   return {
-    shellGhost: ramp(p, 0.22, 0.35) * (1 - ramp(p, 0.84, 0.99)),
-    capLift: 13 * ramp(p, 0.3, 0.5) * (1 - ramp(p, 0.74, 0.96)),
-    bodyFade: 1 - ramp(p, 0.2, 0.34),
-    interior: ramp(p, 0.4, 0.86),
+    shellGhost: 0,
+    capLift: 0,
+    entryCut: 44 - 32 * open,
+    bodyFade: 1 - ramp(p, 0.8, 0.95),
+    interior: ramp(p, 0.36, 0.7),
   };
 }
 
 export function journeyCaption(p: number): string | null {
   if (p < 0.04 || p > 0.985) return null;
-  if (p < 0.19) return 'Tracking across the playing surface — 1.6 mm dish, 0.06 mm ripples';
-  if (p < 0.31) return 'Descending toward the cap-to-shell gap — 0.6 mm clearance (proposed)';
-  if (p < 0.62) return 'Shell turns translucent · cap lifts to expose its retention flange — cinematic reveal, the real cap is captive';
-  if (p < 0.8) return 'Passing beneath the cap';
-  return 'Inside Node 01 — force-transfer puck above the FSR';
+  if (p < 0.2) return 'Approaching Node 01 across the playing surface';
+  if (p < 0.34) return 'The cap floats: a 0.6 mm gap all the way round (proposed clearance)';
+  if (p < 0.56) return 'Section opens — the cap flange is captured under the shell lip';
+  if (p < 0.8) return 'Through the section: silicone bumpers either side, force-transfer puck ahead';
+  return 'Inside Node 01 — the enclosure closes behind you';
 }
 
 export const fitFactor = (aspect: number) => (aspect < 1.3 ? THREE.MathUtils.clamp(1.3 / aspect, 1, 2.4) : 1);

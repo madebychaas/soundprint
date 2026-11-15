@@ -12,7 +12,7 @@ export function HeroTitles() {
   };
   return (
     <section className={`hero ${ready ? 'in' : ''}`} aria-label="Introduction">
-      <p className="eyebrow">Instrument Study 01 <span>·</span> a one-of-one for Angelo</p>
+      <p className="eyebrow">Orbital Bloom 02 <span>·</span> a one-of-one for Angelo</p>
       <h1>Liquid<br />Frequency</h1>
       <p className="lede">Three expressive pressure nodes</p>
       <div className="hero-actions">
@@ -21,7 +21,7 @@ export function HeroTitles() {
         </button>
         <button className="ghost" onClick={() => goTo('sculptural')}>Select Node 01</button>
       </div>
-      <p className="hero-hint">Drag to orbit · tap a node to hear it</p>
+      <p className="hero-hint">Drag to orbit · tap a node to hear it · it notices your hand</p>
     </section>
   );
 }

@@ -40,11 +40,12 @@ ul, ol { padding: 0; list-style: none; }
 kbd { font-family: var(--mono); font-size: 0.85em; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; }
 
 .app { position: fixed; inset: 0; }
-.stage { position: absolute !important; inset: 0; touch-action: none; }
+.stage { position: absolute !important; inset: 0; touch-action: none; isolation: isolate; z-index: 0; }
 .stage canvas { display: block; outline: none; }
-.ui { position: absolute; inset: 0; pointer-events: none; }
+.callouts { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.ui { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .ui > * { pointer-events: auto; }
-.veil { position: absolute; inset: 0; background: #0a0512; opacity: 0; pointer-events: none; transition: opacity 0.22s ease; }
+.veil { position: absolute; inset: 0; z-index: 2; background: #0a0512; opacity: 0; pointer-events: none; transition: opacity 0.22s ease; }
 html[data-cut] .veil { opacity: 0.92; transition-duration: 0.02s; }
 
 /* ── header ───────────────────────────────────────────── */
@@ -268,7 +269,7 @@ input[type='checkbox'] { accent-color: #8ff0ff; width: 15px; height: 15px; margi
 .card .panel-kicker { margin-bottom: 4px; }
 .card li { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
 .card .btn { position: relative; margin-top: 12px; }
-.loader { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; background: radial-gradient(circle at 50% 45%, #1c1030, #08040d 70%); transition: opacity 1.2s ease 0.2s, visibility 0s linear 1.5s; z-index: 50; }
+.loader { position: absolute; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: 10px; background: radial-gradient(circle at 50% 45%, #1c1030, #08040d 70%); transition: opacity 1.2s ease 0.2s, visibility 0s linear 1.5s; z-index: 50; }
 .loader.done { opacity: 0; visibility: hidden; pointer-events: none; }
 .loader-ring { width: 54px; height: 54px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.14); border-top-color: var(--aqua); animation: spin 1.6s linear infinite; margin-bottom: 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -321,3 +322,13 @@ input[type='checkbox'] { accent-color: #8ff0ff; width: 15px; height: 15px; margi
 .app.fx-low .panel, .app.fx-low .drawer, .app.fx-low .popover, .app.fx-low .tabs, .app.fx-low .cta, .app.fx-low .card, .app.fx-low .sheet,
 .app.fx-low .node-tag, .app.fx-low .part-tag, .app.fx-low .primary-action .ghost { backdrop-filter: none; }
 .app.fx-low .panel, .app.fx-low .card { background: rgba(17, 10, 28, 0.86); }
+
+/* live sensor tags inside the node */
+.sensor-tag { display: grid; grid-template-columns: auto auto; column-gap: 10px; align-items: baseline; padding: 5px 10px 6px; border-radius: 9px; background: rgba(12, 7, 20, 0.6); border: 1px solid var(--line); white-space: nowrap; transform: translate(10px, -130%); opacity: 0.72; transition: opacity 0.25s, border-color 0.25s, box-shadow 0.25s; }
+.sensor-tag::before { content: ''; position: absolute; left: -10px; bottom: -9px; width: 14px; height: 1px; background: currentColor; transform: rotate(-38deg); transform-origin: right; opacity: 0.7; }
+.sensor-tag b { font-weight: 400; font-size: 11px; letter-spacing: 0.04em; color: var(--ink); }
+.sensor-tag span { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; min-width: 62px; }
+.sensor-tag i { grid-column: 1 / -1; font-family: var(--mono); font-style: normal; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--warn); opacity: 0.8; }
+.sensor-tag.aqua { color: var(--aqua); } .sensor-tag.lav { color: var(--lav); }
+.sensor-tag.hot { opacity: 1; border-color: currentColor; box-shadow: 0 0 18px -6px currentColor; }
+@media (max-width: 860px) { .sensor-tag b { font-size: 10px; } .sensor-tag i { display: none; } }

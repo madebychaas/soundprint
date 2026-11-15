@@ -34,6 +34,37 @@ export const runtime = {
   companionTarget: { n2: 0, n3: 0 } as Record<'n2' | 'n3', number>,
   knob: 0.5,
   fps: 60,
+  /** entry journey: chord distance of the section plane along the entry corridor (44 = parked outside) */
+  entryCut: 44,
 };
+
+export type NodeId = 'n1' | 'n2' | 'n3';
+
+/**
+ * "Living instrument" state — CINEMATIC LAYER ONLY. None of this feeds the
+ * mechanical model; it drives shader pulses, jewels and proximity response.
+ */
+export const life = {
+  breath: 0,
+  /** pointer position on the instrument surface (instrument frame, mm) and its eased strength */
+  pointer: new THREE.Vector3(0, 0, 0),
+  pointerK: 0,
+  pulses: { n1: { t0: -99, amp: 0 }, n2: { t0: -99, amp: 0 }, n3: { t0: -99, amp: 0 } } as Record<NodeId, { t0: number; amp: number }>,
+  flash: { n1: 0, n2: 0, n3: 0 } as Record<NodeId, number>,
+  prox: { n1: 0, n2: 0, n3: 0 } as Record<NodeId, number>,
+  queue: [] as { id: NodeId; at: number; amp: number }[],
+};
+
+/** A touch on one node: a ripple pulse from it, and a faint delayed answer from the other two. */
+export function emitPulse(id: NodeId, amp: number, sympathetic = true) {
+  life.pulses[id] = { t0: runtime.time, amp };
+  life.flash[id] = Math.max(life.flash[id], Math.min(1.2, amp));
+  if (!sympathetic) return;
+  let k = 1;
+  for (const other of ['n1', 'n2', 'n3'] as NodeId[]) {
+    if (other === id) continue;
+    life.queue.push({ id: other, at: runtime.time + 0.16 * k++, amp: amp * 0.3 });
+  }
+}
 
 export type Runtime = typeof runtime;

@@ -47,6 +47,9 @@ export interface AppState {
   pressure: number;
   latched: boolean;
   cameraResetNonce: number;
+  /** null = not checked yet. The ORBITAL BLOOM 02 export is optional and loaded from public/models. */
+  refAvailable: boolean | null;
+  showReference: boolean;
 
   set: (p: Partial<AppState>) => void;
   goTo: (v: View) => void;
@@ -93,6 +96,8 @@ export const useApp = create<AppState>((set, get) => ({
   pressure: 0,
   latched: false,
   cameraResetNonce: 0,
+  refAvailable: null,
+  showReference: false,
 
   set: (p) => set(p),
   goTo: (v) => {

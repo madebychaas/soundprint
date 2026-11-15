@@ -104,6 +104,8 @@ export function CameraDirector() {
       document.documentElement.dataset.cut = '1';
       window.setTimeout(() => { delete document.documentElement.dataset.cut; }, 260);
       apply(to.pos, to.target, to.fov);
+      camera.fov = to.fov; // a cut should land on the final lens, not ease into it
+      camera.updateProjectionMatrix();
       finish();
       onDone?.();
       return;
@@ -158,7 +160,7 @@ export function CameraDirector() {
     const fovStart = camera.fov;
     s.tween = gsap.to(j, {
       p: p1,
-      duration: Math.max(1.2, (p1 > j.p0 ? 10.5 : 6.5) * span),
+      duration: Math.max(1.2, (p1 > j.p0 ? 12 : 7.5) * span),
       ease: 'sine.inOut',
       onUpdate: () => {
         runtime.journey = j.p;
@@ -286,12 +288,12 @@ export function CameraDirector() {
     for (let i = 0; i < step; i++) done.add(steps[i].part);
     const complete = step >= steps.length;
 
-    let tShell = 0, tCap = 0, tBody = 1, tLift = 0, tInterior = 0, tCut = 0, tCapLift = 0;
+    let tShell = 0, tCap = 0, tBody = 1, tLift = 0, tInterior = 0, tCut = 0, tCapLift = 0, tEntry = 44;
     const inJourneyViews = view === 'sculptural' || view === 'interior';
     if (inJourneyViews) {
       const p = runtime.journey;
       const e = journeyEffects(p);
-      tShell = e.shellGhost; tCapLift = e.capLift; tBody = e.bodyFade; tInterior = e.interior;
+      tShell = e.shellGhost; tCapLift = e.capLift; tBody = e.bodyFade; tInterior = e.interior; tEntry = e.entryCut;
       if (view === 'interior' && (s.mode !== 'journey' || p > 0.9)) {
         const d = camera.position.distanceTo(NODE_CORE);
         let g = ramp(d, 22, 29);
@@ -310,6 +312,7 @@ export function CameraDirector() {
     const journeying = s.mode === 'journey';
     runtime.shellGhost = damp(runtime.shellGhost, tShell, journeying ? 14 : 5 * fast, dt);
     runtime.capGhost = damp(runtime.capGhost, tCap, 5 * fast, dt);
+    runtime.entryCut = damp(runtime.entryCut, tEntry, journeying ? 16 : 5 * fast, dt);
     runtime.capLift = damp(runtime.capLift, tCapLift, journeying ? 14 : 4 * fast, dt);
     runtime.bodyFade = damp(runtime.bodyFade, tBody, journeying ? 12 : 3.2 * fast, dt);
     runtime.nodeLift = damp(runtime.nodeLift, tLift, 3.4 * fast, dt);

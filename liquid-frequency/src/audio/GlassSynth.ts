@@ -153,7 +153,12 @@ export class GlassSynth {
     // ── strike layer ──────────────────────────────────────────────────
     const strikeBus = ctx.createGain();
     strikeBus.gain.value = 1;
-    strikeBus.connect(out);
+    // mallet hardness: gentle taps are rounded off, hard strikes stay glassy
+    const mallet = ctx.createBiquadFilter();
+    mallet.type = 'lowpass';
+    mallet.frequency.value = 700 + 11000 * vel * vel;
+    mallet.Q.value = 0.4;
+    strikeBus.connect(mallet).connect(out);
     const level = 0.05 + 0.5 * Math.pow(vel, 1.5);
     for (const p of PARTIALS) {
       const f = f0 * p.ratio;
@@ -254,6 +259,7 @@ export class GlassSynth {
   }
 
   get activeVoices(): number { return this.voices.size; }
+  has(key: string): boolean { return this.voices.has(key); }
 }
 
 export const synth = new GlassSynth();

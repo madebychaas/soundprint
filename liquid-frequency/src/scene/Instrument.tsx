@@ -9,7 +9,8 @@ import { spunNormalTexture } from '../geometry/textures';
 import { applyFinish, FINISH_BY_ID, microNormal, norm } from './materials';
 import { Node01Assembly } from './Node01Assembly';
 import { CutawayAnnotations } from './CutawayAnnotations';
-import { runtime } from '../state/runtime';
+import { ReferenceModel } from './ReferenceModel';
+import { life, NodeId, runtime } from '../state/runtime';
 import { useApp } from '../state/store';
 import { play } from '../sim/play';
 import { synth } from '../audio/GlassSynth';
@@ -22,6 +23,10 @@ function fadeMaterial(mat: THREE.Material, opacity: number) {
   mat.depthWrite = opacity > 0.5;
 }
 
+const NODE_IDS: NodeId[] = ['n1', 'n2', 'n3'];
+/** Each node's signature tint: aqua, lilac, opal. */
+const NODE_TINT = ['#7fe9f5', '#c4a8ff', '#ffd6f2'];
+
 function BodyShell() {
   const finish = useApp((s) => s.finish);
   const mesh = useRef<THREE.Mesh>(null);
@@ -29,20 +34,66 @@ function BodyShell() {
   const material = useMemo(() => {
     const mat = new THREE.MeshPhysicalMaterial(norm({ ...FINISH_BY_ID[useApp.getState().finish].body }));
     const holes = nodeHoles();
+    const lifeUniforms = {
+      uNodes: { value: NODES.map((n) => new THREE.Vector3(n.x, n.z, 36 * n.scale)) },
+      uPulse: { value: [new THREE.Vector2(99, 0), new THREE.Vector2(99, 0), new THREE.Vector2(99, 0)] },
+      uSpeed: { value: [34, 27, 42] }, // each node's pulse travels at its own pace
+      uPulseColor: { value: NODE_TINT.map((c) => new THREE.Color(c)) },
+      uBreath: { value: 0 },
+      uPointer: { value: new THREE.Vector3() },
+    };
+    mat.userData.life = lifeUniforms;
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uHoles = { value: holes };
+      Object.assign(shader.uniforms, lifeUniforms);
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vBodyXZ;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBodyXZ = position.xz;');
+        .replace('#include <common>', `#include <common>
+          varying vec2 vBodyXZ; varying vec3 vLifeN; varying vec3 vLifeGlow;
+          uniform vec3 uNodes[3]; uniform vec2 uPulse[3]; uniform float uSpeed[3]; uniform vec3 uPulseColor[3];
+          uniform float uBreath; uniform vec3 uPointer;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vBodyXZ = position.xz;
+          // ── living surface (cinematic): travelling ripple pulses, breath, pointer swell ──
+          float lfEdge = smoothstep(0.5, 7.0, position.y);
+          vec2 lfGrad = vec2(0.0); float lfLift = 0.0; vec3 lfGlow = vec3(0.0);
+          for (int i = 0; i < 3; i++) {
+            vec2 dv = position.xz - uNodes[i].xy;
+            float d = length(dv);
+            vec2 dir = dv / max(d, 0.001);
+            float o = d - uNodes[i].z;
+            float q = uPulse[i].x * uSpeed[i];
+            float w = 4.5 + q * 0.1;
+            float e = exp(-pow((o - q) / w, 2.0)) * uPulse[i].y * exp(-q / 42.0) * step(-2.0, o);
+            lfLift += 0.5 * e;
+            lfGrad += dir * (0.5 * e * (-2.0 * (o - q) / (w * w)));
+            lfGlow += uPulseColor[i] * e;
+            // the frozen ripples deepen and relax with the breath
+            float rb = uBreath * 0.07 * exp(-max(o - 3.0, 0.0) / 15.0) * step(0.0, o);
+            lfGrad += dir * (rb * 0.661 * cos(0.661 * (o - 2.0)));
+          }
+          vec2 pv = position.xz - uPointer.xy;
+          float pe = exp(-dot(pv, pv) / 300.0) * uPointer.z;
+          lfLift += 0.75 * pe;
+          lfGrad += pv * (0.75 * pe * (-2.0 / 300.0));
+          lfLift += uBreath * 0.2;
+          transformed.y += lfLift * lfEdge;
+          vLifeN = normalMatrix * vec3(-lfGrad.x, 0.0, -lfGrad.y) * lfEdge;
+          vLifeGlow = lfGlow * lfEdge;`);
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform vec3 uHoles[3];\nvarying vec2 vBodyXZ;')
-        .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nfor (int i = 0; i < 3; i++) { if (distance(vBodyXZ, uHoles[i].xy) < uHoles[i].z) discard; }');
+        .replace('#include <common>', '#include <common>\nuniform vec3 uHoles[3];\nvarying vec2 vBodyXZ; varying vec3 vLifeN; varying vec3 vLifeGlow;')
+        .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nfor (int i = 0; i < 3; i++) { if (distance(vBodyXZ, uHoles[i].xy) < uHoles[i].z) discard; }')
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(normal + vLifeN);')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vLifeGlow * 0.42;');
     };
     mat.customProgramCacheKey = () => 'lf-body';
     return mat;
   }, []);
   useEffect(() => applyFinish(material, FINISH_BY_ID[finish].body), [finish, material]);
   useFrame(() => {
+    const u = material.userData.life;
+    NODE_IDS.forEach((id, i) => { const p = life.pulses[id]; u.uPulse.value[i].set(runtime.time - p.t0, p.amp); });
+    u.uBreath.value = life.breath;
+    u.uPointer.value.set(life.pointer.x, life.pointer.z, life.pointerK);
     fadeMaterial(material, runtime.bodyFade);
     if (mesh.current) mesh.current.visible = runtime.bodyFade > 0.01;
   });
@@ -71,9 +122,9 @@ function CompanionNode({ node, index }: { node: NodeLayout; index: 1 | 2 }) {
   useFrame((_, dt) => {
     const k = 1 - Math.exp(-dt * (runtime.companionTarget[id] > runtime.companionPress[id] ? 60 : 14));
     runtime.companionPress[id] += (runtime.companionTarget[id] - runtime.companionPress[id]) * k;
-    if (cap.current) cap.current.position.y = -0.9 * runtime.companionPress[id];
+    if (cap.current) cap.current.position.y = -0.9 * runtime.companionPress[id] + 0.07 * life.breath * (index === 1 ? 1 : -1) - 0.12 * life.prox[id];
     const hovered = useApp.getState().hoveredNode === id;
-    mats.glow.opacity = (0.1 + (hovered ? 0.3 : 0) + runtime.companionPress[id] * 0.6) * runtime.bodyFade;
+    mats.glow.opacity = Math.min(1, 0.1 + (hovered ? 0.2 : 0) + runtime.companionPress[id] * 0.6 + life.prox[id] * 0.3 + life.flash[id] * 0.5) * runtime.bodyFade;
     fadeMaterial(mats.shell, runtime.bodyFade);
     fadeMaterial(mats.cap, runtime.bodyFade);
     if (grp.current) grp.current.visible = runtime.bodyFade > 0.01;
@@ -223,6 +274,81 @@ function ProximityWindow() {
   );
 }
 
+/**
+ * Per-node adornments (CONCEPTUAL STYLING): a translucent meniscus ring where the
+ * shell meets the body, and one small jewel with its own quiet behaviour.
+ *   Node 01 — aqua, breathes steadily.
+ *   Node 02 — lilac, an occasional double twinkle.
+ *   Node 03 — opal, slowly drifts in hue.
+ */
+function NodeAdornment({ node, index }: { node: NodeLayout; index: number }) {
+  const id = node.id as NodeId;
+  const grp = useRef<THREE.Group>(null);
+  const jewel = useRef<THREE.Mesh>(null);
+  const R = 36 * node.scale;
+  const place = useMemo(() => {
+    // ring height: mean body height just outside the shell
+    let sum = 0;
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; sum += bodyHeight(node.x + Math.cos(a) * (R + 1.4), node.z + Math.sin(a) * (R + 1.4)); }
+    const ringY = sum / 12 - 0.55;
+    // jewel: on the body, on the outward side of the node, turned a little toward the player
+    const out = Math.atan2(node.z - 2, node.x - 4) + [0.95, -0.9, 0.5][index];
+    const jx = node.x + Math.cos(out) * (R + 9.5), jz = node.z + Math.sin(out) * (R + 9.5);
+    const e = 0.4;
+    const hx = (bodyHeight(jx + e, jz) - bodyHeight(jx - e, jz)) / (2 * e), hz = (bodyHeight(jx, jz + e) - bodyHeight(jx, jz - e)) / (2 * e);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-hx, 1, -hz).normalize());
+    return { ringY, jewel: new THREE.Vector3(jx, bodyHeight(jx, jz) + 0.15, jz), q };
+  }, [node, R, index]);
+  const mats = useMemo(() => ({
+    ring: new THREE.MeshPhysicalMaterial({ color: NODE_TINT[index], roughness: 0.08, metalness: 0, transparent: true, opacity: 0.5, clearcoat: 1, clearcoatRoughness: 0.05, iridescence: 1, iridescenceIOR: 1.35, emissive: NODE_TINT[index], emissiveIntensity: 0.12, envMapIntensity: 1.6, depthWrite: false }),
+    jewel: new THREE.MeshPhysicalMaterial({ color: NODE_TINT[index], roughness: 0.03, metalness: 0.15, flatShading: true, clearcoat: 1, iridescence: 1, iridescenceIOR: 1.9, emissive: NODE_TINT[index], emissiveIntensity: 0.4, envMapIntensity: 2.2, transparent: true }),
+    bezel: new THREE.MeshPhysicalMaterial({ color: '#e2dfea', metalness: 1, roughness: 0.2, transparent: true }),
+  }), [index]);
+  const geo = useMemo(() => ({
+    ring: latheGeometry(
+      roundCorners([{ x: R - 0.5, y: 0 }, { x: R + 2.5, y: 0, r: 0.5 }, { x: R + 1.9, y: 1.05, r: 0.9 }, { x: R + 0.3, y: 1.35, r: 0.6 }, { x: R - 0.5, y: 1.0 }], true, 5),
+      { segments: 160, closed: true },
+    ),
+    jewel: new THREE.IcosahedronGeometry(1.75, 0),
+    bezel: new THREE.TorusGeometry(2.2, 0.3, 10, 40),
+  }), [R]);
+  const hsl = useMemo(() => new THREE.Color(), []);
+  useFrame(() => {
+    const t = runtime.time;
+    const fade = runtime.bodyFade;
+    if (grp.current) grp.current.visible = fade > 0.01;
+    const react = life.prox[id] * 0.9 + life.flash[id] * 2.2;
+    let glow: number;
+    if (index === 0) glow = 0.55 + 0.3 * life.breath;
+    else if (index === 1) {
+      const ph = t % 5.6;
+      glow = 0.28 + 1.5 * (Math.exp(-Math.pow((ph - 0.4) / 0.07, 2)) + 0.7 * Math.exp(-Math.pow((ph - 0.68) / 0.07, 2)));
+    } else {
+      glow = 0.5;
+      hsl.setHSL(0.52 + 0.3 * Math.sin(t * 0.21), 0.75, 0.72);
+      mats.jewel.emissive.copy(hsl);
+      mats.jewel.color.copy(hsl);
+    }
+    mats.jewel.emissiveIntensity = glow + react;
+    mats.jewel.opacity = fade;
+    mats.bezel.opacity = fade;
+    mats.ring.opacity = 0.5 * fade;
+    mats.ring.emissiveIntensity = 0.1 + 0.08 * life.breath + life.prox[id] * 0.35 + life.flash[id] * 0.9;
+    if (jewel.current) jewel.current.rotation.y = t * 0.12 + index;
+  });
+  return (
+    <group ref={grp} name={`${node.label.replace(' ', '')}_Adornment_Concept`}>
+      <group position={[node.x, node.elev > 0 ? place.ringY : place.ringY, node.z]} rotation={[node.tiltX, 0, node.tiltZ]}>
+        <mesh geometry={geo.ring} material={mats.ring} renderOrder={2} />
+      </group>
+      <group position={place.jewel} quaternion={place.q}>
+        <mesh geometry={geo.bezel} material={mats.bezel} rotation-x={Math.PI / 2} position={[0, 0.1, 0]} />
+        <mesh ref={jewel} geometry={geo.jewel} material={mats.jewel} scale={[1, 0.62, 1]} position={[0, 0.75, 0]} />
+      </group>
+    </group>
+  );
+}
+
 export function Instrument() {
   const n1 = NODES[0];
   return (
@@ -231,9 +357,11 @@ export function Instrument() {
       <group position={[n1.x, 0, n1.z]} rotation-y={n1.rotY}>
         <Node01Assembly />
         <CutawayAnnotations />
+        <ReferenceModel />
       </group>
       <CompanionNode node={NODES[1]} index={1} />
       <CompanionNode node={NODES[2]} index={2} />
+      {NODES.map((n, i) => <NodeAdornment key={n.id} node={n} index={i} />)}
       <RotaryControl />
       <ProximityWindow />
     </group>

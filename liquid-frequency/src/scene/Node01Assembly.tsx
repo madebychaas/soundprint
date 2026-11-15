@@ -11,7 +11,8 @@ import {
 import { arcBlockGeometry } from '../geometry/lathe';
 import { fsrTextures, ringTexture, spunNormalTexture } from '../geometry/textures';
 import { applyFinish, applyVisual, COLORS, FINISH_BY_ID, makeMaterial, microNormal, PartMaterial } from './materials';
-import { runtime } from '../state/runtime';
+import { life, runtime } from '../state/runtime';
+import { ENTRY_AZIMUTH } from './cameraPoses';
 import { useApp } from '../state/store';
 import { play, sim } from '../sim/play';
 
@@ -21,6 +22,11 @@ export const cutPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
 export const node01Root: { current: THREE.Group | null } = { current: null };
 
 const ENCLOSURE: PartId[] = ['shell', 'cap', 'shelf', 'cover'];
+/** During the entry journey only the enclosure the camera flies through is sectioned. */
+const ENTRY_CUT: PartId[] = ['shell', 'cap'];
+const ENTRY_U = new THREE.Vector3(Math.cos(ENTRY_AZIMUTH * DEG), 0, Math.sin(ENTRY_AZIMUTH * DEG));
+/** true while any section plane is live (used by picking) */
+let planeLive = false;
 const tmpN = new THREE.Vector3();
 const tmpP = new THREE.Vector3();
 
@@ -52,8 +58,9 @@ function useNodeMaterials() {
       insert: makeMaterial({ color: COLORS.brass, roughness: 0.35, metalness: 1 }, '#e0bd74'),
     };
     const fx = {
-      glow: new THREE.MeshBasicMaterial({ color: '#8ff0ff', transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.BackSide }),
+      glow: new THREE.MeshBasicMaterial({ color: '#8ff0ff', transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.BackSide, clippingPlanes: [cutPlane] }),
       contact: new THREE.MeshBasicMaterial({ color: '#9ff4ff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, map: ringTexture() }),
+      wave: new THREE.MeshBasicMaterial({ color: '#a9d9ff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, map: ringTexture() }),
       ring: new THREE.MeshBasicMaterial({ color: '#cbb8ff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, map: ringTexture() }),
     };
     const byPart: Record<PartId, PartMaterial[]> = {
@@ -82,6 +89,7 @@ export function Node01Assembly() {
   const tipRef = useRef<THREE.Mesh>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const contactRef = useRef<THREE.Mesh>(null);
+  const waveRef = useRef<THREE.Mesh>(null);
   const piezoBody = useRef<THREE.Group>(null);
   const lightA = useRef<THREE.PointLight>(null);
   const lightB = useRef<THREE.PointLight>(null);
@@ -151,14 +159,25 @@ export function Node01Assembly() {
     rootG.position.y = runtime.nodeLift;
     rootG.updateMatrixWorld();
 
-    // ── clipping plane (node-local → world) ───────────────────────────
-    const cutting = runtime.cutReveal > 0.002;
-    if (cutting) {
+    // ── clipping plane (node-local → world) ────────────────────────────
+    // One plane, two uses: the user-driven Cutaway view, and the entry journey's
+    // chord cut that opens the shell + cap on the camera's side so it can fly in.
+    const cutaway = runtime.cutReveal > 0.002;
+    const entry = !cutaway && runtime.entryCut < 43.5;
+    const cutting = cutaway || entry;
+    planeLive = cutting;
+    if (cutaway) {
       const a = s.cutAngle * DEG;
       const off = THREE.MathUtils.lerp(44, s.cutOffset, runtime.cutReveal);
       tmpN.set(Math.sin(a), 0, -Math.cos(a));
       cutPlane.set(tmpN, off);
       cutPlane.applyMatrix4(rootG.matrixWorld);
+    } else if (entry) {
+      tmpN.copy(ENTRY_U).negate();
+      cutPlane.set(tmpN, runtime.entryCut);
+      cutPlane.applyMatrix4(rootG.matrixWorld);
+    } else {
+      cutPlane.set(tmpN.set(0, 1, 0), 1e6); // parked: clips nothing
     }
 
     // ── part transforms ───────────────────────────────────────────────
@@ -192,7 +211,7 @@ export function Node01Assembly() {
       if (id === 'shell') op *= THREE.MathUtils.lerp(1, 0.085, gs.shell);
       if (id === 'cap') op *= THREE.MathUtils.lerp(1, 0.07, gs.cap);
       const hl = anySel === id ? 0.5 + 0.18 * Math.sin(state.clock.elapsedTime * 3.2) : s.hoveredPart === id ? 0.35 : 0;
-      const plane = cutting && (s.cutInternals || ENCLOSURE.includes(id)) ? cutPlane : null;
+      const plane = cutaway ? (s.cutInternals || ENCLOSURE.includes(id) ? cutPlane : null) : entry && ENTRY_CUT.includes(id) ? cutPlane : null;
       const grp = g[id];
       if (grp) {
         grp.visible = op > 0.012 && (id !== 'piezo' || hybrid);
@@ -221,10 +240,18 @@ export function Node01Assembly() {
     }
     if (contactRef.current) {
       fx.contact.opacity = Math.min(0.9, sim.fsr * 1.4) * runtime.partFade.fsr;
-      contactRef.current.visible = fx.contact.opacity > 0.01 && !cutting;
+      contactRef.current.visible = fx.contact.opacity > 0.01 && !cutaway;
     }
-    const glowBase = 0.1 + 0.5 * sim.fsr + 0.6 * pz + (s.hoveredNode === 'n1' && s.view === 'artifact' ? 0.25 : 0);
-    fx.glow.opacity = Math.min(1, glowBase) * (1 - gs.shell) * runtime.partFade.shell * (1 - Math.min(1, lift / 2)) * (cutting ? 0 : 1);
+    const glowBase = 0.1 + 0.05 * life.breath + 0.5 * sim.fsr + 0.6 * pz + life.prox.n1 * 0.3 + life.flash.n1 * 0.35 + (s.hoveredNode === 'n1' && s.view === 'artifact' ? 0.15 : 0);
+    fx.glow.opacity = Math.min(1, glowBase) * (1 - gs.shell) * runtime.partFade.shell * (1 - Math.min(1, lift / 2)) * (cutaway ? 0 : 1);
+    // strike wave: a ring crossing the shelf from the force path toward the piezo (visualisation only)
+    if (waveRef.current) {
+      const age = sim.strikeAge;
+      const k = Math.min(1, age / 0.42);
+      waveRef.current.scale.setScalar(8 + 62 * (1 - Math.pow(1 - k, 2.2)));
+      fx.wave.opacity = age < 0.42 ? (1 - k) * 0.55 * Math.min(1, 0.25 + sim.lastStrike) * runtime.partFade.shelf * (1 - runtime.bodyFade) : 0;
+      waveRef.current.visible = fx.wave.opacity > 0.01;
+    }
 
     // ── interior light rig ────────────────────────────────────────────
     const k = runtime.interior;
@@ -240,7 +267,7 @@ export function Node01Assembly() {
 
   // ── picking ─────────────────────────────────────────────────────────
   const findHit = (e: ThreeEvent<PointerEvent | MouseEvent>): PartId | null => {
-    const cutting = runtime.cutReveal > 0.5;
+    const cutting = planeLive;
     for (const hit of e.intersections) {
       let o: THREE.Object3D | null = hit.object;
       if (o.userData.fx) continue;
@@ -402,6 +429,7 @@ export function Node01Assembly() {
           const [x, z] = polar(30.65, a);
           return <mesh key={a} name={`Shelf_WireClip_${a}`} geometry={geo.clip} material={m.shelf} position={[x, DIM.shelf.topY + 0.73, z]} rotation-y={-a * DEG} />;
         })}
+        <mesh ref={waveRef} geometry={geo.disc} material={fx.wave} rotation-x={-Math.PI / 2} position={[0, DIM.shelf.topY + 0.05, 0]} userData={{ fx: true }} renderOrder={4} />
         <mesh name="Shelf_ExitTongue" geometry={geo.tongue} material={m.shelf} position={[33.7, 4.3, 0]} />
       </group>
 
