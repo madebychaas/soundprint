@@ -56,8 +56,12 @@ async function journeyAndPlay(page, tag) {
   return { probe, pt };
 }
 
+const ONLY = (process.env.SMOKE_ONLY || '').split(',').filter(Boolean);
+const run = (name) => ONLY.length === 0 || ONLY.includes(name);
+
 (async () => {
   const browser = await chromium.launch({ args: GL });
+  if (run('main')) {
   // 1000 px keeps the desktop layout (the tablet / phone sheet starts at 860 px)
   const { ctx, page, errors, ready } = await open(browser, { viewport: { width: 1000, height: 640 } });
   check('app boots and reports ready', ready);
@@ -198,8 +202,15 @@ async function journeyAndPlay(page, tag) {
   await page.keyboard.press('Escape');
   check('back navigation: Escape steps cutaway → exterior → instrument', ok && (await until(page, idleIn('artifact'), 60000)));
 
+  check('no console or page errors (desktop run)', errors.length === 0, errors.slice(0, 3).join(' | '));
+  await ctx.close();
+  }
+
+  if (run('compare')) {
+    const { ctx, page, errors } = await open(browser, { viewport: { width: 1000, height: 640 } });
+    let ok;
   // ── parametric comparison is still there and still works ────────────
-  await click(page, /Specs/);
+  await click(page, /Technical specification|Specs/);
   await page.getByRole('radio', { name: 'Parametric comparison' }).click();
   ok = await until(page, () => window.__lf.store.getState().nodeModel === 'parametric' && window.__lf.sim.gap > 0.19 && !window.__lf.store.getState().transitioning, 30000);
   check('comparison: switching to the parametric stand-in works', ok);
@@ -211,11 +222,12 @@ async function journeyAndPlay(page, tag) {
   check('parametric: journey out completes', await until(page, idleIn('sculptural', 0), 90000));
   await ev(page, () => window.__lf.store.getState().setModel('ob02'));
   check('comparison: switching back restores the real model and its gap', await until(page, () => window.__lf.store.getState().nodeModel === 'ob02' && window.__lf.sim.gap === 0 && window.__lf.mechanics() && window.__lf.mechanics().cap !== null, 30000));
-  check('no console or page errors (desktop run)', errors.length === 0, errors.slice(0, 3).join(' | '));
-  await ctx.close();
+    check('no console or page errors (comparison run)', errors.length === 0, errors.slice(0, 3).join(' | '));
+    await ctx.close();
+  }
 
   // ── phone ───────────────────────────────────────────────────────────
-  {
+  if (run('phone')) {
     const m = await open(browser, { viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 }, '&instant=1');
     check('phone: boots', m.ready);
     check('phone: page does not scroll sideways', await ev(m.page, () => document.scrollingElement.scrollWidth <= window.innerWidth + 1));
@@ -233,7 +245,7 @@ async function journeyAndPlay(page, tag) {
   }
 
   // ── reduced motion ──────────────────────────────────────────────────
-  {
+  if (run('motion')) {
     const r = await open(browser, { viewport: { width: 860, height: 560 }, reducedMotion: 'reduce' });
     await r.page.getByRole('button', { name: 'Interior', exact: true }).click();
     check('reduced motion: interior is reached by a cut, not a flight', await until(r.page, idleIn('interior', 1), 10000));
