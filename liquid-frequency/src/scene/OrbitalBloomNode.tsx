@@ -251,43 +251,43 @@ export function OrbitalBloomNode() {
       <pointLight ref={lightB} color="#c7b2ff" intensity={0} distance={120} decay={2} position={[-14, 6.5, 10]} />
       <pointLight ref={lightC} color="#fff3e6" intensity={0} distance={90} decay={2} position={[8, 12.4, -12]} />
 
-      <group ref={setGroup('shelf')} name="01_bottom_sensor_tray_printed" userData={{ part: 'shelf' }}>
+      <group ref={setGroup('shelf')} name="OB02_Tray" userData={{ part: 'shelf' }}>
         <mesh name={OB_MESHES.tray} geometry={G[OB_MESHES.tray]} material={m.tray} {...sh} />
       </group>
 
-      <group ref={setGroup('shell')} name="02_biomorphic_three_lobe_shell_printed" userData={{ part: 'shell' }}>
+      <group ref={setGroup('shell')} name="OB02_Shell" userData={{ part: 'shell' }}>
         <mesh name={OB_MESHES.shell} geometry={G[OB_MESHES.shell]} material={m.shell} {...sh} />
         {OB_MESHES.glyphs.map((n) => <mesh key={n} name={n} geometry={G[n]} material={m.glyph} />)}
         <mesh geometry={geo.glow} material={fx.glow} userData={{ fx: true }} renderOrder={3} />
       </group>
 
-      <group ref={setGroup('cap')} name="03_three_spiral_touch_cap_printed" userData={{ part: 'cap' }}>
+      <group ref={setGroup('cap')} name="OB02_Cap" userData={{ part: 'cap' }}>
         <group ref={capMove}>
           <mesh name={OB_MESHES.cap} geometry={G[OB_MESHES.cap]} material={m.cap} {...sh} />
           <mesh ref={waveRef} geometry={geo.disc} material={fx.wave} rotation-x={Math.PI / 2} position={[0, OB.capBottomY - 0.03, 0]} userData={{ fx: true }} renderOrder={4} />
         </group>
       </group>
 
-      <group ref={setGroup('puck')} name="04_transfer_puck_with_soft_tip" userData={{ part: 'puck' }}>
+      <group ref={setGroup('puck')} name="OB02_Puck" userData={{ part: 'puck' }}>
         <group ref={puckMove}>
           <mesh name={OB_MESHES.puck} geometry={G[OB_MESHES.puck]} material={m.puck} {...sh} />
         </group>
         <mesh ref={tipRef} name={OB_MESHES.tip} geometry={geo.tip.geo} material={m.tip} position={geo.tip.at} />
       </group>
 
-      <group ref={setGroup('bumpers')} name="10_compliant_return_bumpers" userData={{ part: 'bumpers' }}>
+      <group ref={setGroup('bumpers')} name="OB02_Bumpers" userData={{ part: 'bumpers' }}>
         {geo.bumpers.map((b, i) => (
           <mesh key={i} ref={(el) => { if (el) bumperRefs.current[i] = el; }} name={OB_MESHES.bumpers[i]} geometry={b.geo} material={m.bumper} position={b.at} {...sh} />
         ))}
       </group>
 
-      <group ref={setGroup('fsr')} name="06_07_adafruit_166_FSR" userData={{ part: 'fsr' }}>
+      <group ref={setGroup('fsr')} name="OB02_FSR" userData={{ part: 'fsr' }}>
         <mesh name={OB_MESHES.fsrHead} geometry={G[OB_MESHES.fsrHead]} material={m.fsr} receiveShadow />
         <mesh name={OB_MESHES.fsrTail} geometry={G[OB_MESHES.fsrTail]} material={m.fsr} />
         <mesh ref={contactRef} geometry={geo.disc} material={fx.contact} rotation-x={-Math.PI / 2} position={[0, OB.fsrTopY + 0.03, 0]} scale={15} userData={{ fx: true }} renderOrder={4} />
       </group>
 
-      <group ref={setGroup('piezo')} name="08_09_piezo_disc" userData={{ part: 'piezo' }} visible={hybrid}>
+      <group ref={setGroup('piezo')} name="OB02_Piezo" userData={{ part: 'piezo' }} visible={hybrid}>
         <group ref={piezoMove}>
           <mesh name={OB_MESHES.piezoDisc} geometry={G[OB_MESHES.piezoDisc]} material={m.brass} />
           <mesh name={OB_MESHES.piezoCeramic} geometry={G[OB_MESHES.piezoCeramic]} material={m.ceramic} />
@@ -295,7 +295,7 @@ export function OrbitalBloomNode() {
         </group>
       </group>
 
-      <group ref={setGroup('screws')} name="11_M3_screw_placeholders" userData={{ part: 'screws' }}>
+      <group ref={setGroup('screws')} name="OB02_Screws" userData={{ part: 'screws' }}>
         {OB_MESHES.screws.map((n) => <mesh key={n} name={n} geometry={G[n]} material={m.steel} />)}
       </group>
     </group>

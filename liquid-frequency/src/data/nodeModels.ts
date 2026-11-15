@@ -41,7 +41,7 @@ export interface NodeProfile {
   padTopY: number;
   cutawayTargetY: number;
   /** node-local points used by automated pointer tests */
-  probe: { capInside: [number, number, number]; fsr: [number, number, number] };
+  probe: { capInside: [number, number, number]; pick: { at: [number, number, number]; part: PartId } };
 }
 
 const index = (parts: PartInfo[]) => Object.fromEntries(parts.map((p) => [p.id, p])) as Partial<Record<PartId, PartInfo>>;
@@ -77,7 +77,7 @@ export const PROFILES: Record<NodeModelId, NodeProfile> = {
     ceilY: OB.capBottomY - 0.9,
     padTopY: OB.capCentreY,
     cutawayTargetY: 10.5,
-    probe: { capInside: [-6, OB.capBottomY, 9], fsr: [22, 11.06, 0] },
+    probe: { capInside: [-6, OB.capBottomY, 9], pick: { at: [-2.2, 13.9, 3.81], part: 'puck' } },
   },
   parametric: {
     id: 'parametric',
@@ -109,6 +109,6 @@ export const PROFILES: Record<NodeModelId, NodeProfile> = {
     ceilY: 17.8,
     padTopY: 20.4,
     cutawayTargetY: 10.5,
-    probe: { capInside: [-4, 18.6, 7], fsr: [16, 9.5, 0] },
+    probe: { capInside: [-4, 18.6, 7], pick: { at: [-2.5, 13.2, 4.33], part: 'puck' } },
   },
 };
