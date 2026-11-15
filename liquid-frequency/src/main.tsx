@@ -7,7 +7,7 @@ import '@fontsource/dm-mono/400.css';
 import './styles/global.css';
 import App from './App';
 import { profile, useApp, View } from './state/store';
-import { node01Root } from './scene/nodeShared';
+import { node01Root, pointerDebug } from './scene/nodeShared';
 import { OB_MESHES } from './data/orbitalBloom';
 import { runtime } from './state/runtime';
 import { play, sim } from './sim/play';
@@ -44,7 +44,7 @@ function mechanics() {
     meshNames: root.children.flatMap((c) => c.children.flatMap((m) => (m.name ? [m.name] : m.children.map((k) => k.name)))).filter(Boolean),
   };
 }
-(window as unknown as Record<string, unknown>).__lf = { store: useApp, runtime, sim, play, synth, directorDebug, profile, mechanics };
+(window as unknown as Record<string, unknown>).__lf = { store: useApp, runtime, sim, play, synth, directorDebug, profile, mechanics, pointerDebug };
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

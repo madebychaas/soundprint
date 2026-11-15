@@ -17,6 +17,24 @@ sim.listener = {
 
 let pointerHeld = false;
 
+/**
+ * The simulation runs on wall-clock time, NOT on rendered frames. It is advanced
+ * from a short timer and again from the render loop (so visuals read fresh state),
+ * and every gesture flushes the first few milliseconds synchronously — a note
+ * therefore starts inside the input event even if the renderer is momentarily busy.
+ */
+let lastAdvance = typeof performance !== 'undefined' ? performance.now() : 0;
+export function advanceSim() {
+  const now = performance.now();
+  const dt = Math.min((now - lastAdvance) / 1000, 0.1);
+  lastAdvance = now;
+  if (dt > 0) sim.step(dt);
+  // stuck-note guard: the simulated gate is the only authority for the Node 01 voice
+  if (!sim.gate && synth.has('n1')) synth.noteOff('n1');
+}
+/** Process the onset of a gesture right now (piezo scan window is 2 ms). */
+const flushOnset = () => { sim.step(0.004); lastAdvance = performance.now(); };
+
 function canPlay(): boolean {
   const s = useApp.getState();
   if (s.view === 'exploded' || s.view === 'collection') return false;
@@ -29,6 +47,7 @@ export const play = {
     if (!canPlay()) return;
     synth.ensure();
     sim.strike(intensity ?? useApp.getState().strikeIntensity);
+    flushOnset();
   },
   /** Strike and keep pressing until pressEnd(). */
   pressStart(holdForce?: number, intensity?: number) {
@@ -39,6 +58,7 @@ export const play = {
     sim.strike(intensity ?? s.strikeIntensity);
     const f = holdForce ?? Math.max(0.3, s.strikeIntensity * 0.75);
     sim.setHold(f);
+    flushOnset();
     useApp.setState({ pressure: f });
   },
   pressModulate(force: number) {
@@ -70,6 +90,7 @@ export const play = {
     const f = s.pressure > 0.05 ? s.pressure : 0.6;
     sim.strike(s.strikeIntensity);
     sim.setHold(f);
+    flushOnset();
     useApp.setState({ latched: true, pressure: f });
   },
   release() {
@@ -94,6 +115,11 @@ export const play = {
     window.setTimeout(() => { runtime.companionTarget[id] = 0; synth.noteOff(id); }, 160);
   },
 };
+
+if (typeof window !== 'undefined') {
+  window.setInterval(advanceSim, 8);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) play.release(); });
+}
 
 useApp.subscribe((s, prev) => {
   if (s.muted !== prev.muted) synth.setMuted(s.muted);

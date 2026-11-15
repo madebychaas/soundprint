@@ -9,16 +9,12 @@ import { Instrument } from './Instrument';
 import { CollectionExhibits } from './CollectionExhibits';
 import { SceneLabels } from './SceneLabels';
 import { Effects } from './Effects';
-import { sim } from '../sim/play';
-import { synth } from '../audio/GlassSynth';
+import { advanceSim } from '../sim/play';
 import { Life } from './Life';
 
+/** Visuals read the simulation each frame; the simulation itself runs on its own clock (see sim/play.ts). */
 function SimulationDriver() {
-  useFrame((_, dt) => {
-    sim.step(dt);
-    // stuck-note guard: the simulated gate is the only authority for the Node 01 voice
-    if (!sim.gate && synth.has('n1')) synth.noteOff('n1');
-  }, -3);
+  useFrame(() => advanceSim(), -3);
   return null;
 }
 

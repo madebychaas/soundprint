@@ -28,6 +28,8 @@ const ENTRY_U = new THREE.Vector3(Math.cos(ENTRY_AZIMUTH * DEG), 0, Math.sin(ENT
 const tmpN = new THREE.Vector3();
 const tmpP = new THREE.Vector3();
 const planeState = { live: false };
+/** Last pointer-down on the node and what was decided, for diagnosing missed presses. */
+export const pointerDebug = { downs: 0, last: '' };
 
 /**
  * One plane, two uses: the Cutaway view's movable section, and the entry journey's
@@ -114,10 +116,13 @@ export function useNodePointer() {
     };
     const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
       const s = useApp.getState();
-      if (s.transitioning) return;
+      pointerDebug.downs++;
+      if (s.transitioning) { pointerDebug.last = 'ignored: transitioning'; return; }
       const exterior = s.view === 'sculptural';
-      if (!exterior && s.view !== 'interior' && s.view !== 'cutaway') return;
-      if (findHit(e) !== 'cap') return;
+      if (!exterior && s.view !== 'interior' && s.view !== 'cutaway') { pointerDebug.last = `ignored: view ${s.view}`; return; }
+      const hit = findHit(e);
+      pointerDebug.last = `hit ${hit} of ${e.intersections.length} (first raw: ${e.intersections[0]?.object.name || 'none'})`;
+      if (hit !== 'cap') return;
       e.stopPropagation();
       const ev0 = e.nativeEvent;
       const pen = (ev: PointerEvent) => (ev.pointerType === 'pen' && ev.pressure > 0 ? ev.pressure : null);
