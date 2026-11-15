@@ -58,7 +58,8 @@ async function journeyAndPlay(page, tag) {
 
 (async () => {
   const browser = await chromium.launch({ args: GL });
-  const { ctx, page, errors, ready } = await open(browser, { viewport: { width: 860, height: 560 } });
+  // 1000 px keeps the desktop layout (the tablet / phone sheet starts at 860 px)
+  const { ctx, page, errors, ready } = await open(browser, { viewport: { width: 1000, height: 640 } });
   check('app boots and reports ready', ready);
 
   // ── the real model is what is on screen ─────────────────────────────
@@ -118,7 +119,9 @@ async function journeyAndPlay(page, tag) {
   await click(page, /Enter node/);
   ok = await until(page, () => window.__lf.runtime.journey > 0.12 && window.__lf.runtime.journey < 0.9, 60000);
   const pMid = await ev(page, () => +window.__lf.runtime.journey.toFixed(2));
-  await click(page, /exit node/i);
+  // mid-flight the renderer is busy, so Playwright's own "is it stable" wait can starve: the button is
+  // visible and hit-testable (checked separately), so click it directly
+  await page.getByRole('button', { name: /exit node/i }).click({ force: true, timeout: 20000 }).catch((e) => console.log('  (interrupt click failed: ' + String(e).split('\n')[0] + ')'));
   const ok2 = await until(page, idleIn('sculptural', 0), 90000);
   check('interrupted journey reverses mid-flight and lands outside', ok && ok2, `turned at p=${pMid}`);
 
