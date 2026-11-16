@@ -24,9 +24,12 @@ const VIEWS: { id: ViewId; label: string }[] = [
 ];
 const GEM = PADS.gem1;
 /** ?clean=1 hides the cards, for uncluttered views of the form */
-const clean = new URLSearchParams(window.location.search).has('clean');
+const params = new URLSearchParams(window.location.search);
+const clean = params.has('clean');
+/** ?bare=1 hides the whole interface, for renders of the object alone */
+const bare = params.has('bare');
 
-/** Live read-out for the one wired gemstone. Values come from a behavioural model, not hardware. */
+/** Live read-out for the one wired stone. Expression is simulated from pointer travel, not measured. */
 function GemReadout() {
   const r = useRef<Record<string, HTMLElement | null>>({});
   const bind = (k: string) => (el: HTMLElement | null) => { r.current[k] = el; };
@@ -34,14 +37,14 @@ function GemReadout() {
     let raf = 0;
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      const sim = instrument.sim('gem1');
+      const on = instrument.isHeld('gem1'), st = instrument.synth.state, name = instrument.noteName('gem1');
       const set = (k: string, v: string) => { const el = r.current[k]; if (el && el.textContent !== v) el.textContent = v; };
-      set('vel', sim.velocity ? String(sim.velocity) : '—');
-      set('pr', `${Math.round(sim.fsr * 100)}%`);
-      set('note', sim.gate ? `${GEM.note} on` : `${GEM.note} off`);
-      r.current.note?.classList.toggle('on', sim.gate);
+      set('vel', on ? String(st.velocity) : '—');
+      set('pr', `${Math.round(st.expr)}%`);
+      set('note', on ? `${name} on` : `${name} off`);
+      r.current.note?.classList.toggle('on', on);
       const bar = r.current.bar as HTMLElement | null;
-      if (bar) bar.style.transform = `scaleX(${sim.fsr})`;
+      if (bar) bar.style.transform = `scaleX(${on ? st.expr / 100 : 0})`;
     };
     tick();
     return () => cancelAnimationFrame(raf);
@@ -49,11 +52,11 @@ function GemReadout() {
   const press = () => instrument.press('gem1');
   const release = () => instrument.release('gem1');
   return (
-    <section className="card readout" aria-label="Gem 01 read-out">
-      <header><p className="kicker">{GEM.label} · {GEM.cut}</p><span className="sim">Simulated</span></header>
+    <section className="card readout" aria-label="Stone 01 read-out">
+      <header><p className="kicker">{GEM.label} · {GEM.cut}</p><span className="sim">Digital simulation</span></header>
       <div className="nums">
         <div><span>Velocity</span><b ref={bind('vel')} /></div>
-        <div><span>Pressure</span><b ref={bind('pr')} /></div>
+        <div><span>Expression</span><b ref={bind('pr')} /></div>
         <div><span>Note</span><b ref={bind('note')} /></div>
       </div>
       <div className="meter"><em ref={bind('bar')} /></div>
@@ -61,7 +64,7 @@ function GemReadout() {
         onKeyDown={(e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); press(); } }} onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') release(); }}>
         Play {GEM.label}
       </button>
-      <p className="fine">Press the pear-shaped opal on the model — drag down for more pressure — or hold <kbd>Space</kbd>.</p>
+      <p className="fine">Press the large stone on the forefoot — drag up for more expression — or hold <kbd>A</kbd> or <kbd>Space</kbd>.</p>
     </section>
   );
 }
@@ -79,24 +82,24 @@ export default function App() {
     const typing = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; return !!t && (t.tagName === 'INPUT' || t.tagName === 'BUTTON' || t.isContentEditable); };
     const down = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.code === 'Space') { if (typing(e)) return; e.preventDefault(); if (!held && !e.repeat) { held = true; instrument.press('gem1'); } return; }
+      if (e.code === 'Space' || e.code === 'KeyA') { if (e.code === 'Space' && typing(e)) return; e.preventDefault(); if (!held && !e.repeat) { held = true; instrument.press('gem1'); } return; }
       const k = e.key.toLowerCase();
       const idx = '123456'.indexOf(k);
       if (idx >= 0) return setView(VIEWS[idx].id);
       if (k === 'x') return set({ xray: !useUi.getState().xray });
       if (k === 'm') { const m = !useUi.getState().muted; instrument.setMuted(m); return set({ muted: m }); }
     };
-    const up = (e: KeyboardEvent) => { if (e.code === 'Space' && held) { held = false; instrument.release('gem1'); } };
+    const up = (e: KeyboardEvent) => { if ((e.code === 'Space' || e.code === 'KeyA') && held) { held = false; instrument.release('gem1'); } };
     window.addEventListener('keydown', down); window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, [set, setView]);
 
   return (
-    <div className={`app ${clean ? 'clean' : ''}`}>
+    <div className={`app ${clean ? 'clean' : ''} ${bare ? 'bare' : ''}`}>
       <StageBoundary><Stage /></StageBoundary>
       <div className="ui">
         <header className="top">
-          <div className="mark"><span>Stiletto</span><i>Form study 01 · concept geometry</i></div>
+          <div className="mark"><span>Stiletto</span><i>Form study 02 · after Concept C</i></div>
           <nav className="views" aria-label="Views">
             {VIEWS.map((v) => <button key={v.id} className={view === v.id ? 'on' : ''} aria-current={view === v.id ? 'page' : undefined} onClick={() => setView(v.id)}>{v.label}</button>)}
           </nav>
@@ -108,10 +111,11 @@ export default function App() {
         <GemReadout />
         <aside className="card note" aria-label="About this preview">
           <p className="kicker">For design approval</p>
-          <p>One instrument, one continuous line: toe, arch, heel. Three opal playing stones in three cuts, a rotary control at the crest, a proximity window at the toe.</p>
-          <p className="fine">Conceptual geometry, not fabrication CAD. Only Gem 01 is wired for now. {xray ? 'The x-ray shows a proposed internal layout as simple volumes — a packaging sketch, not engineered parts.' : ''}</p>
+          <p>A pearl shell that rises from a low almond toe to the crown, on a clear lilac block heel. Three opal stones, an optical sensor and a rotary crown.</p>
+          <p className="fine">Conceptual geometry, not fabrication CAD. Only Stone 01 is wired for now; the sound engine is the original STILETTO synthesizer.</p>
         </aside>
       </div>
+      <p className={`xray-note ${xray ? 'on' : ''}`} aria-hidden={!xray}>Proposed internal layout · concept sketch, not fabrication CAD</p>
       <div className={`loader ${ready ? 'done' : ''}`} role="status" aria-hidden={ready}><p>Stiletto</p></div>
     </div>
   );

@@ -9,26 +9,29 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { Stiletto } from './Stiletto';
 import { useUi, ViewId } from '../store';
 
-/** Camera presets: where the camera sits and what it looks at (mm). */
-const VIEWS: Record<ViewId, { pos: [number, number, number]; target: [number, number, number] }> = {
-  hero: { pos: [-210, 170, 500], target: [0, 44, 0] },
-  profile: { pos: [0, 52, 700], target: [0, 46, 0] },
-  front: { pos: [-660, 110, 150], target: [0, 50, 0] },
-  top: { pos: [0, 720, 1], target: [0, 40, 0] },
-  rear: { pos: [470, 180, 330], target: [10, 50, 0] },
-  under: { pos: [150, 14, 420], target: [30, 52, 0] },
+/** Camera presets: where the camera sits, what it looks at (mm) and its field of view. Elevations use a long lens. */
+const VIEWS: Record<ViewId, { pos: [number, number, number]; target: [number, number, number]; fov: number }> = {
+  hero: { pos: [-305, 240, 481], target: [4, 62, 0], fov: 26 },
+  profile: { pos: [2, 72, 1400], target: [2, 70, 0], fov: 14 },
+  front: { pos: [-940, 160, 0], target: [2, 70, 0], fov: 11 },
+  top: { pos: [2, 1400, 14], target: [2, 40, 0], fov: 14 },
+  rear: { pos: [940, 140, 0], target: [2, 70, 0], fov: 11 },
+  under: { pos: [340, 70, 500], target: [70, 62, 0], fov: 22 },
 };
-const FOCUS = new THREE.Vector3(4, 56, 0);
+const BACKDROP = { horizon: '#b3aca6', high: '#8f8984' };
 
+/** A seamless warm-grey studio sweep with a soft pool of light behind the piece. */
 function Dome() {
   const mat = useMemo(() => new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { uHorizon: { value: new THREE.Color(BACKDROP.horizon) }, uHigh: { value: new THREE.Color(BACKDROP.high) } },
     vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: `varying vec3 vDir; void main(){ vec3 d = normalize(vDir); float h = d.y;
-      vec3 col = mix(vec3(0.20,0.09,0.31), vec3(0.10,0.045,0.17), smoothstep(-0.02,0.26,h));
-      col = mix(col, vec3(0.027,0.012,0.05), smoothstep(0.2,0.85,h));
-      col += vec3(0.25,0.47,0.56) * exp(-pow((h-0.07)/0.15,2.0)) * (0.45 + 0.55*max(0.0,-d.z)) * 0.5;
-      col *= mix(0.3,1.0,smoothstep(-0.45,0.0,h)); gl_FragColor = vec4(col,1.0); }`,
+    fragmentShader: `varying vec3 vDir; uniform vec3 uHorizon; uniform vec3 uHigh;
+      void main(){ vec3 d = normalize(vDir);
+        // the sweep meets the floor at exactly the floor's far colour, then deepens overhead
+        gl_FragColor = vec4(mix(uHorizon, uHigh, smoothstep(0.16, 0.9, d.y)), 1.0);
+        #include <colorspace_fragment>
+      }`,
   }), []);
   return <mesh material={mat} scale={7000} renderOrder={-10}><sphereGeometry args={[1, 48, 24]} /></mesh>;
 }
@@ -36,38 +39,32 @@ function Dome() {
 function Studio({ high }: { high: boolean }) {
   return (
     <>
-      <fogExp2 attach="fog" args={['#160a24', 0.00034]} />
+      <fog attach="fog" args={[BACKDROP.horizon, 1500, 5600]} />
       <Dome />
       <Environment resolution={high ? 1024 : 512} frames={1}>
-        <mesh scale={100}><sphereGeometry args={[1, 32, 16]} /><meshBasicMaterial color="#1a0d2a" side={THREE.BackSide} /></mesh>
-        <Lightformer form="rect" color="#fff6ef" intensity={3.4} position={[0, 9, 1]} rotation-x={Math.PI / 2} scale={[13, 8, 1]} />
-        <Lightformer form="rect" color="#8feaf5" intensity={5.5} position={[-9, 2.6, 2]} rotation-y={Math.PI / 2} scale={[14, 1.1, 1]} />
-        <Lightformer form="rect" color="#b99cff" intensity={4.6} position={[9, 3.4, -1]} rotation-y={-Math.PI / 2} scale={[12, 1.4, 1]} />
-        <Lightformer form="rect" color="#fff6ef" intensity={0.6} position={[0, 6.5, -11]} rotation-x={0.5} scale={[22, 6, 1]} />
-        <Lightformer form="rect" color="#ffd0ec" intensity={0.5} position={[0, 7.5, 11]} rotation-y={Math.PI} rotation-x={-0.5} scale={[16, 4, 1]} />
-        <Lightformer form="rect" color="#3f7890" intensity={2.2} position={[0, 2.2, -10]} scale={[18, 2.4, 1]} />
-        <Lightformer form="ring" color="#fff6ef" intensity={2.6} position={[2.5, 5.5, 8]} rotation-y={Math.PI} scale={3.2} />
-        {[-5, -3, -1, 1, 3, 5].map((x) => (
-          <Lightformer key={x} form="rect" color={x % 2 ? '#8feaf5' : '#b99cff'} intensity={1.5} position={[x * 1.5, 4.8, -9.5]} scale={[0.14, 6, 1]} />
-        ))}
-        <mesh position={[0, -3, 0]} rotation-x={-Math.PI / 2}><planeGeometry args={[60, 60]} /><meshBasicMaterial color="#2a1c47" /></mesh>
-        <Lightformer form="circle" color="#9a7bea" intensity={0.9} position={[0, -2.6, 0]} rotation-x={-Math.PI / 2} scale={9} />
+        <mesh scale={100}><sphereGeometry args={[1, 32, 16]} /><meshBasicMaterial color="#59544f" side={THREE.BackSide} /></mesh>
+        {/* a broad overhead softbox, a large key from the front-left, a strip from behind for the rim */}
+        <Lightformer form="rect" color="#fffaf5" intensity={1.25} position={[0, 9, 0]} rotation-x={Math.PI / 2} scale={[17, 12, 1]} />
+        <Lightformer form="rect" color="#fff7f0" intensity={1.9} position={[-8, 4.5, 7]} scale={[8, 6, 1]} target={[0, 0, 0]} />
+        <Lightformer form="rect" color="#ffffff" intensity={2.6} position={[8, 4, -6]} scale={[1.4, 8, 1]} target={[0, 0, 0]} />
+        <Lightformer form="rect" color="#f3ecff" intensity={0.7} position={[9, 3, 5]} scale={[4, 5, 1]} target={[0, 0, 0]} />
+        <Lightformer form="rect" color="#fff3ea" intensity={0.6} position={[-3, 3.5, -10]} scale={[14, 4, 1]} target={[0, 0, 0]} />
+        <Lightformer form="rect" color="#fff8f2" intensity={0.75} position={[2, 3, 12]} scale={[22, 7, 1]} target={[0, 0, 0]} />
+        <Lightformer form="rect" color="#fff6ee" intensity={1.1} position={[12, 0.6, 6]} scale={[9, 5, 1]} target={[0, 0.6, 0]} />
+        <mesh position={[0, -3, 0]} rotation-x={-Math.PI / 2}><planeGeometry args={[60, 60]} /><meshBasicMaterial color="#8f8882" /></mesh>
+        <Lightformer form="circle" color="#b79cf2" intensity={0.9} position={[3, -2.6, 0]} rotation-x={-Math.PI / 2} scale={5} />
       </Environment>
-      <ambientLight intensity={0.12} color="#b9a6ff" />
-      <directionalLight color="#fff3ea" intensity={2.3} position={[-160, 520, 300]} castShadow shadow-mapSize={high ? [2048, 2048] : [1024, 1024]}
-        shadow-camera-left={-260} shadow-camera-right={260} shadow-camera-top={260} shadow-camera-bottom={-260} shadow-camera-near={50} shadow-camera-far={1400} shadow-bias={-0.0004} shadow-normalBias={0.8} />
-      <spotLight color="#7fe9f5" intensity={230000} position={[-520, 260, -260]} angle={0.5} penumbra={1} decay={2} distance={2200} />
-      <spotLight color="#c3a8ff" intensity={190000} position={[560, 320, -120]} angle={0.5} penumbra={1} decay={2} distance={2200} />
-      {/* plinth */}
+      <ambientLight intensity={0.1} color="#fff6ee" />
+      <directionalLight color="#fff6ee" intensity={1.75} position={[-240, 560, 330]} castShadow shadow-mapSize={high ? [2048, 2048] : [1024, 1024]}
+        shadow-camera-left={-280} shadow-camera-right={280} shadow-camera-top={280} shadow-camera-bottom={-280} shadow-camera-near={60} shadow-camera-far={1500} shadow-bias={-0.0004} shadow-normalBias={0.9} shadow-radius={6} />
+      <directionalLight color="#efe6ff" intensity={0.3} position={[420, 260, -260]} />
+      {/* the floor of the sweep */}
       <mesh rotation-x={-Math.PI / 2} receiveShadow>
-        <circleGeometry args={[250, 128]} />
+        <circleGeometry args={[6000, 96]} />
         {high
-          ? <MeshReflectorMaterial color="#1c0e2e" metalness={0.72} roughness={0.42} mirror={0.55} mixStrength={1.5} mixBlur={0.9} blur={[420, 160]} resolution={1024} depthScale={0} envMapIntensity={0.3} />
-          : <meshPhysicalMaterial color="#1c0e2e" metalness={0.8} roughness={0.3} envMapIntensity={0.5} />}
+          ? <MeshReflectorMaterial color="#b6afa9" metalness={0} roughness={0.62} mirror={0.4} mixStrength={0.22} mixBlur={1} blur={[900, 420]} resolution={512} depthScale={0} envMapIntensity={0.5} />
+          : <meshPhysicalMaterial color="#b6afa9" metalness={0.1} roughness={0.45} envMapIntensity={0.5} />}
       </mesh>
-      <mesh position={[0, -9, 0]}><cylinderGeometry args={[250, 250, 18, 128, 1, true]} /><meshPhysicalMaterial color="#150c22" metalness={0.7} roughness={0.36} /></mesh>
-      <mesh position={[0, -24, 0]} receiveShadow><cylinderGeometry args={[282, 288, 12, 128]} /><meshPhysicalMaterial color="#150c22" metalness={0.7} roughness={0.36} /></mesh>
-      <mesh position={[0, -30, 0]} rotation-x={-Math.PI / 2}><circleGeometry args={[5200, 96]} /><meshPhysicalMaterial color="#12081d" metalness={0.35} roughness={0.55} envMapIntensity={0.22} /></mesh>
     </>
   );
 }
@@ -79,7 +76,7 @@ function CameraRig() {
   const size = useThree((s) => s.size);
   const view = useUi((s) => s.view);
   const nonce = useUi((s) => s.viewNonce);
-  const move = useRef<{ t: number; dur: number; p0: THREE.Vector3; t0: THREE.Vector3; p1: THREE.Vector3; t1: THREE.Vector3 } | null>(null);
+  const move = useRef<{ t: number; dur: number; p0: THREE.Vector3; t0: THREE.Vector3; p1: THREE.Vector3; t1: THREE.Vector3; f0: number; f1: number } | null>(null);
   const started = useRef(false);
 
   useEffect(() => { (window as unknown as { __stControls?: OrbitControlsImpl | null }).__stControls = controls.current; }, []);
@@ -94,12 +91,12 @@ function CameraRig() {
     const reduced = useUi.getState().reducedMotion;
     if (!started.current || reduced || !c) {
       started.current = true;
-      camera.position.copy(p1); camera.lookAt(t1);
+      camera.position.copy(p1); camera.fov = v.fov; camera.updateProjectionMatrix(); camera.lookAt(t1);
       if (c) { c.target.copy(t1); c.update(); }
       return;
     }
     c.enabled = false;
-    move.current = { t: 0, dur: 1.7, p0: camera.position.clone(), t0: c.target.clone(), p1, t1 };
+    move.current = { t: 0, dur: 1.7, p0: camera.position.clone(), t0: c.target.clone(), p1, t1, f0: camera.fov, f1: v.fov };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, nonce]);
 
@@ -114,12 +111,13 @@ function CameraRig() {
     let dTheta = b.theta - a.theta; while (dTheta > Math.PI) dTheta -= Math.PI * 2; while (dTheta < -Math.PI) dTheta += Math.PI * 2;
     const s = new THREE.Spherical(THREE.MathUtils.lerp(a.radius, b.radius, k), THREE.MathUtils.lerp(a.phi, b.phi, k), a.theta + dTheta * k);
     camera.position.setFromSpherical(s).add(tgt);
+    camera.fov = THREE.MathUtils.lerp(m.f0, m.f1, k); camera.updateProjectionMatrix();
     c.target.copy(tgt); camera.lookAt(tgt);
     if (m.t >= 1) { move.current = null; c.enabled = true; c.update(); }
   }, -1);
 
   return <OrbitControls ref={controls} makeDefault enablePan={false} enableDamping dampingFactor={0.075} rotateSpeed={0.55} zoomSpeed={0.7}
-    minDistance={150} maxDistance={1100} minPolarAngle={0.05} maxPolarAngle={1.62} />;
+    minDistance={170} maxDistance={1700} minPolarAngle={0.005} maxPolarAngle={1.555} />;
 }
 
 function Post() {
@@ -128,18 +126,19 @@ function Post() {
     const d = dof.current;
     if (!d) return;
     const ctl = (window as unknown as { __stControls?: { target: THREE.Vector3 } }).__stControls;
-    const focus = ctl ? ctl.target : FOCUS;
-    if (d.target) d.target.copy(focus);
+    if (!ctl) return;
+    if (d.target) d.target.copy(ctl.target);
     const coc = d.cocMaterial as unknown as { focusRange: number; copyCameraSettings(c: unknown): void };
     coc.copyCameraSettings(camera);
-    coc.focusRange = Math.max(60, camera.position.distanceTo(focus) * 0.9);
+    // the whole piece stays sharp; only the far sweep of the studio softens
+    coc.focusRange = Math.max(240, camera.position.distanceTo(ctl.target) * 1.1);
   });
   return (
     <EffectComposer multisampling={4} enableNormalPass={false}>
-      <N8AO aoRadius={16} intensity={1.8} distanceFalloff={1} quality="medium" halfRes color="#0a0414" />
-      <DepthOfField ref={dof} target={[4, 56, 0]} bokehScale={1.4} resolutionScale={0.5} />
-      <Bloom mipmapBlur intensity={0.22} luminanceThreshold={1.2} luminanceSmoothing={0.3} radius={0.6} />
-      <Vignette offset={0.22} darkness={0.62} />
+      <N8AO aoRadius={14} intensity={1.5} distanceFalloff={1} quality="medium" halfRes color="#2a2028" />
+      <DepthOfField ref={dof} target={[4, 64, 0]} bokehScale={1.1} resolutionScale={0.5} />
+      <Bloom mipmapBlur intensity={0.3} luminanceThreshold={1.55} luminanceSmoothing={0.25} radius={0.62} />
+      <Vignette offset={0.26} darkness={0.42} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
     </EffectComposer>
   );
@@ -147,7 +146,7 @@ function Post() {
 
 function Renderer({ post }: { post: boolean }) {
   const gl = useThree((s) => s.gl);
-  useEffect(() => { gl.toneMapping = post ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping; }, [gl, post]);
+  useEffect(() => { gl.toneMapping = post ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping; gl.toneMappingExposure = 1; }, [gl, post]);
   useFrame((state) => { if (!useUi.getState().ready && state.clock.elapsedTime > 0.05) useUi.getState().set({ ready: true }); });
   return null;
 }
@@ -155,8 +154,8 @@ function Renderer({ post }: { post: boolean }) {
 export function Stage() {
   const high = useUi((s) => s.quality === 'high');
   return (
-    <Canvas className="stage" shadows="percentage" dpr={[1, high ? 1.75 : 1.3]} camera={{ fov: 26, near: 10, far: 9000, position: [-170, 150, 430] }}
-      gl={{ antialias: !high, powerPreference: 'high-performance', stencil: false }} role="img" aria-label="Interactive 3D view of the STILETTO instrument">
+    <Canvas className="stage" shadows="percentage" dpr={[1, high ? 1.75 : 1.3]} camera={{ fov: 26, near: 20, far: 16000, position: [-305, 240, 481] }}
+      gl={{ antialias: !high, powerPreference: 'high-performance', stencil: false, preserveDrawingBuffer: true }} role="img" aria-label="Interactive 3D view of the STILETTO instrument">
       <Renderer post={high} />
       <CameraRig />
       <Suspense fallback={null}>
