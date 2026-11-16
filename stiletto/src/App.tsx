@@ -1,7 +1,7 @@
 import { Component, ReactNode, useEffect, useRef } from 'react';
 import { Stage } from './scene/Stage';
 import { instrument, PADS } from './engine/instrument';
-import { useUi, ViewId } from './store';
+import { tagPortal, useUi, ViewId } from './store';
 
 /** If the 3D view fails, the instrument still plays from plain HTML. */
 class StageBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -97,6 +97,7 @@ export default function App() {
   return (
     <div className={`app ${clean ? 'clean' : ''} ${bare ? 'bare' : ''}`}>
       <StageBoundary><Stage /></StageBoundary>
+      <div className="tags" ref={(el) => { tagPortal.current = el; }} />
       <div className="ui">
         <header className="top">
           <div className="mark"><span>Stiletto</span><i>Form study 02 · after Concept C</i></div>

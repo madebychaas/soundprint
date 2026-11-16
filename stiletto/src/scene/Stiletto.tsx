@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
@@ -9,7 +10,7 @@ import {
 } from '../model/stilettoGeometry';
 import { instrument, PadId, PADS, PAD_IDS, PAD_TRAVEL } from '../engine/instrument';
 import { synth } from '../engine/stilettoSynth';
-import { useUi } from '../store';
+import { tagPortal, useUi } from '../store';
 
 /**
  * STILETTO, drawn after Concept C. The exterior is conceptual industrial design.
@@ -253,6 +254,7 @@ export function Stiletto() {
 
   const sh = { castShadow: true, receiveShadow: true };
   const tagStyle = { opacity: xray ? 1 : 0, transition: 'opacity 0.35s' };
+  const portal = tagPortal as React.RefObject<HTMLElement>;
   const hoverAt = hovered === 'crown' ? CROWN.position.clone().addScaledVector(CROWN.axis, 18) : hovered === 'sensor' ? deckMount(SENSOR_X, 2).position : hovered && hovered in STONE_X ? stones.find((s) => s.id === hovered)!.top : null;
 
   return (
@@ -343,18 +345,18 @@ export function Stiletto() {
 
       {/* x-ray call-outs (always mounted; only their opacity changes) */}
       {stones.map((s, i) => (
-        <Html key={s.id} position={s.top} center className="tag-wrap" style={tagStyle}>
+        <Html key={s.id} position={s.top} center portal={portal} className="tag-wrap" style={tagStyle}>
           <div className={`xtag ${i === 1 ? 'up2' : 'up'}`}><b>Pad 0{i + 1}</b><span>{PADS[s.id].cut} · pressure cell beneath</span></div>
         </Html>
       ))}
-      <Html position={[-70, 9, 46]} center className="tag-wrap" style={tagStyle}><div className="xtag down"><b>Electronics cavity</b><span>board + cell · reached through the side panels</span></div></Html>
-      <Html position={[34, shellUnder(34) - 6, 30]} center className="tag-wrap" style={tagStyle}><div className="xtag down2"><b>Spine</b><span>one rigid member, forefoot to heel</span></div></Html>
-      <Html position={[HEEL.x + 2, 46, 20]} center className="tag-wrap" style={tagStyle}><div className="xtag right"><b>Structural heel</b><span>ribbed clear block · two tie-bolts into the spine</span></div></Html>
-      <Html position={deckMount(SENSOR_X, 3).position} center className="tag-wrap" style={tagStyle}><div className="xtag up3"><b>Optical module</b><span>hand-distance sensor</span></div></Html>
-      <Html position={CROWN.position.clone().addScaledVector(CROWN.axis, 17)} center className="tag-wrap" style={tagStyle}><div className="xtag right"><b>Crown</b><span>rotary encoder behind</span></div></Html>
+      <Html position={[-70, 9, 46]} center portal={portal} className="tag-wrap" style={tagStyle}><div className="xtag down"><b>Electronics cavity</b><span>board + cell · reached through the side panels</span></div></Html>
+      <Html position={[34, shellUnder(34) - 6, 30]} center portal={portal} className="tag-wrap" style={tagStyle}><div className="xtag down2"><b>Spine</b><span>one rigid member, forefoot to heel</span></div></Html>
+      <Html position={[HEEL.x + 2, 46, 20]} center portal={portal} className="tag-wrap" style={tagStyle}><div className="xtag right"><b>Structural heel</b><span>ribbed clear block · two tie-bolts into the spine</span></div></Html>
+      <Html position={deckMount(SENSOR_X, 3).position} center portal={portal} className="tag-wrap" style={tagStyle}><div className="xtag up3"><b>Optical module</b><span>hand-distance sensor</span></div></Html>
+      <Html position={CROWN.position.clone().addScaledVector(CROWN.axis, 17)} center portal={portal} className="tag-wrap" style={tagStyle}><div className="xtag right"><b>Crown</b><span>rotary encoder behind</span></div></Html>
 
       {/* quiet hover notes for the parts that are shown but not wired yet */}
-      <Html position={hoverAt ?? [0, 0, 0]} center className="tag-wrap" style={{ opacity: hoverAt && hovered !== 'gem1' && !xray ? 1 : 0, transition: 'opacity 0.2s' }}>
+      <Html position={hoverAt ?? [0, 0, 0]} center portal={portal} className="tag-wrap" style={{ opacity: hoverAt && hovered !== 'gem1' && !xray ? 1 : 0, transition: 'opacity 0.2s' }}>
         <div className="xtag up">
           <b>{hovered === 'crown' ? 'Rotary crown' : hovered === 'sensor' ? 'Optical sensor' : hovered && hovered in PADS ? `${PADS[hovered as PadId].label} · ${PADS[hovered as PadId].cut}` : ''}</b>
           <span>shown, not wired until the form is approved</span>

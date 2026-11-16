@@ -18,6 +18,8 @@ const VIEWS: Record<ViewId, { pos: [number, number, number]; target: [number, nu
   rear: { pos: [940, 140, 0], target: [2, 60, 0], fov: 14.5 },
   under: { pos: [340, 70, 500], target: [70, 62, 0], fov: 22 },
 };
+/** With the interface showing, the piece sits a little smaller and higher so the cards never cover the playing stone. */
+const WITH_UI = typeof window !== 'undefined' && !new URLSearchParams(window.location.search).has('bare');
 const BACKDROP = { horizon: '#b3aca6', high: '#8f8984' };
 
 /** A seamless warm-grey studio sweep with a soft pool of light behind the piece. */
@@ -84,8 +86,9 @@ function CameraRig() {
   useEffect(() => {
     const v = VIEWS[view];
     const aspect = size.width / Math.max(1, size.height);
-    const fit = aspect < 1.3 ? Math.min(2.4, 1.3 / aspect) : 1;
+    const fit = (aspect < 1.3 ? Math.min(2.4, 1.3 / aspect) : 1) * (WITH_UI ? 1.16 : 1);
     const t1 = new THREE.Vector3(...v.target);
+    if (WITH_UI && view !== 'top') t1.y -= 24;
     const p1 = new THREE.Vector3(...v.pos).sub(t1).multiplyScalar(fit).add(t1);
     const c = controls.current;
     const reduced = useUi.getState().reducedMotion;

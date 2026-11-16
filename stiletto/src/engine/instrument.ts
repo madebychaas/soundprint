@@ -14,7 +14,7 @@ export interface PadSpec { id: PadId; index: 0 | 1 | 2; label: string; cut: stri
 
 /** Only the first stone is wired until the physical design is approved. */
 export const PADS: Record<PadId, PadSpec> = {
-  gem1: { id: 'gem1', index: 0, label: 'Stone 01', cut: 'Teardrop cabochon', key: 'A', enabled: true },
+  gem1: { id: 'gem1', index: 0, label: 'Stone 01', cut: 'Egg cabochon', key: 'A', enabled: true },
   gem2: { id: 'gem2', index: 1, label: 'Stone 02', cut: 'Faceted shield', key: 'S', enabled: false },
   gem3: { id: 'gem3', index: 2, label: 'Stone 03', cut: 'Round cabochon', key: 'D', enabled: false },
 };

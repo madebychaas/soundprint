@@ -50,6 +50,7 @@ kbd { font-family: var(--mono); font-size: 0.85em; padding: 1px 5px; border: 1px
 .btn:active { background: var(--aqua); color: #fff; }
 .fine { color: var(--ink-3); font-size: 11.5px; line-height: 1.5; margin-top: 10px; }
 
+.tags { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
 .tag-wrap { pointer-events: none !important; user-select: none; }
 .xtag { position: relative; display: flex; flex-direction: column; align-items: center; padding: 6px 12px; border-radius: 10px; background: rgba(24, 18, 30, 0.86); color: #f6f1ec; white-space: nowrap; }
 .xtag b { font-weight: 400; font-size: 12.5px; letter-spacing: 0.03em; }

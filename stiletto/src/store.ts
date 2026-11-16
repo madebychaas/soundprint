@@ -31,3 +31,6 @@ export const useUi = create<UiState>((set) => ({
   set: (p) => set(p),
   setView: (v) => set((s) => ({ view: v, viewNonce: s.viewNonce + 1 })),
 }));
+
+/** A fixed element the 3D call-outs are mounted into, so their target never changes while the scene starts up. */
+export const tagPortal: { current: HTMLElement | null } = { current: null };
