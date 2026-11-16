@@ -48,3 +48,9 @@ Only Stone 01 is wired. Stones 02 and 03, the optical sensor and the crown are
 modelled but silent. Scene switching, recording, MIDI file export and Web MIDI
 output exist in the original prototype and have not been brought across; the
 engine already emits the MIDI bytes they need.
+
+## Renders
+
+`docs/renders/` holds the review set from this build: three-quarter, side, front,
+top, rear, the x-ray of the proposed internal layout, and the interface with
+Stone 01 held.
