@@ -13,9 +13,9 @@ import { useUi, ViewId } from '../store';
 const VIEWS: Record<ViewId, { pos: [number, number, number]; target: [number, number, number]; fov: number }> = {
   hero: { pos: [-305, 240, 481], target: [4, 62, 0], fov: 26 },
   profile: { pos: [2, 72, 1400], target: [2, 70, 0], fov: 14 },
-  front: { pos: [-940, 160, 0], target: [2, 70, 0], fov: 11 },
+  front: { pos: [-940, 160, 0], target: [2, 63, 0], fov: 15.5 },
   top: { pos: [2, 1400, 14], target: [2, 40, 0], fov: 14 },
-  rear: { pos: [940, 140, 0], target: [2, 70, 0], fov: 11 },
+  rear: { pos: [940, 140, 0], target: [2, 60, 0], fov: 14.5 },
   under: { pos: [340, 70, 500], target: [70, 62, 0], fov: 22 },
 };
 const BACKDROP = { horizon: '#b3aca6', high: '#8f8984' };

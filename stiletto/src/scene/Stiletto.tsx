@@ -262,9 +262,9 @@ export function Stiletto() {
       {/* clear sole, arch and block heel, with its foot plate, ribs and base light */}
       <mesh name="Heel_Crystal" geometry={geo.crystal} material={mats.crystal} receiveShadow={!high} />
       <mesh name="Heel_Foot" geometry={geo.foot} material={mats.crystal} />
-      {ribs.map((r) => <mesh key={r.x} name="Heel_Rib" material={mats.rib} position={[r.x, r.y, 0]} castShadow><boxGeometry args={[1.7, r.h, 25]} /></mesh>)}
+      {ribs.map((r) => <mesh key={r.x} name="Heel_Rib" material={mats.rib} position={[r.x, r.y, 0]} castShadow><boxGeometry args={[1.7, r.h, 10]} /></mesh>)}
       <mesh name="Heel_Light" material={mats.heelLight} position={[HEEL.x, 6.6, 0]}><cylinderGeometry args={[9.5, 9.5, 1.2, 40]} /></mesh>
-      <pointLight color="#b48cff" intensity={2600} distance={340} decay={2} position={[HEEL.x - 4, 36, 0]} />
+      <pointLight color="#b48cff" intensity={2000} distance={340} decay={2} position={[98, 26, 0]} />
       <pointLight color="#b999ff" intensity={2600} distance={340} decay={2} position={[62, 30, 0]} />
 
       {/* three stones in rose-gold settings */}
